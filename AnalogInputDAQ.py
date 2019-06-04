@@ -3,6 +3,7 @@ import h5py as hp
 import numpy as np
 import time
 
+# TODO: rework args to use **kwargs, take in either model or all params or some. Override heirarchy.
 class AIDAQ(ni.Task):
 	def __init__(
 		self,			# hardcoded default sample rate of 100kS/s. 
@@ -12,19 +13,32 @@ class AIDAQ(ni.Task):
 		device="Dev1/ai0",
 		savefile="test.h5"
 		):		
+		
+		""" 
+		kwargs to add:
+			daq related:
+			- card model (sets trlen, sr)
+			- sr (sample rate) (overrides card model)
+			- tr (trace length) (overrides card model)
+			- device (channel, device, i.e. Dev1/ai0)
 
+			data save related
+			- savefile (must end in .h5)
+			- group (optional, set to 'traces' if none)
+			- dataset (none, or dict with parameter names)
+		"""
 			
-			
-		# init task
+		# creates self as nidaqmx Task object
 		ni.Task.__init__(self)
-		# hardcoded max sample rates according to card model	
+
+		# hardcoded max sample rates according to card model in Hz.
 		sr_len_by_model =	{
 					"NI6120": 8e5,
 					"NI6374": 3.5e6
 					}
 
 		self.sr		=	int(sr_len_by_model.get(model, sr))  # set sample rate.
-
+		# TODO: Fix with **kwargs 
 		if trlen==0:
 			self.trlen=self.sr	# trace length is equal to sample rate by default
 		else:				# (i.e. each trace is one second long).
@@ -48,7 +62,10 @@ class AIDAQ(ni.Task):
 						maxshape=(None,)
 						)
 
-	def begin_daq(self):
+
+	# initializes config variables based on class parameters. 
+	# Must be called before using AIDAQ.start() (extended from nidaqmx.Task.start())
+	def init_config(self):
 		self.ai_channels.add_ai_voltage_chan(self.device)
 
 		self.timing.cfg_samp_clk_timing(
@@ -77,9 +94,3 @@ class AIDAQ(ni.Task):
 		self.dst[self.dst.size-self.trlen:] = samples
 		
 		return 0
-
-test = AIDAQ(trlen=10000,sr=6e5)
-test.begin_daq()
-test.start()
-
-input("test running. press enter to stop")
