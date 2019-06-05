@@ -3,19 +3,10 @@ import h5py as hp
 import numpy as np
 import time
 
-# TODO: rework args to use **kwargs, take in either model or all params or some. Override heirarchy.
 class AIDAQ(ni.Task):
-	def __init__(
-		self,			# hardcoded default sample rate of 100kS/s. 
-		model="",		# typically, you should provide either the device model or sample rate.
-		sr=1e5,			# if you wish to provide a sample rate other than the max specified by
-		trlen=0,		# your card, leave model blank.
-		device="Dev1/ai0",
-		savefile="test.h5"
-		):		
-		
+	def __init__(self, **kwargs):		
 		""" 
-		kwargs to add:
+		meaningful keyword args:
 			daq related:
 			- card model (sets trlen, sr)
 			- sr (sample rate) (overrides card model)
@@ -27,36 +18,38 @@ class AIDAQ(ni.Task):
 			- group (optional, set to 'traces' if none)
 			- dataset (none, or dict with parameter names)
 		"""
-			
-		# creates self as nidaqmx Task object
+		# initialize self as nidaqmx task object
 		ni.Task.__init__(self)
 
-		# hardcoded max sample rates according to card model in Hz.
-		sr_len_by_model =	{
+		# handle setting default values dynamically, so that further keys can be added later
+		# with more advanced behavior/priority in setting defaults
+		model	=	{
 					"NI6120": 8e5,
 					"NI6374": 3.5e6
-					}
+				}
+		default = 	{
+					'sr' : model.get(kwargs.get('model', ''), 1e5), 		  # prioritizes setting sample rate by max card setting
+					'trlen' : kwargs.get('sr', model.get(kwargs.get('model',''),1e5)),# set trace length=sample rate by default
+					'device' : 'Dev1/ai0',						  # you should almost certainly spec this
+					'savefile' : 'test.h5',						  # and this
+					'group' : 'traces',
+					'dataset' : None
+				}
 
-		self.sr		=	int(sr_len_by_model.get(model, sr))  # set sample rate.
-		# TODO: Fix with **kwargs 
-		if trlen==0:
-			self.trlen=self.sr	# trace length is equal to sample rate by default
-		else:				# (i.e. each trace is one second long).
-			self.trlen=trlen
-									
+		# sets all object keys according to priority as defined above
+		for key in default.keys():
+			setattr(self, key, kwargs.get(key, default[key]))
+		self.dt	=	1/self.sr
+		self.df =	self.trlen/self.sr
 
-		self.dt		= 	1./self.sr			# time resolution
-		self.df		=	self.sr/self.trlen		# frequency resolution
-
-		self.device	=	device
-		self.savefile	=	hp.File(savefile,'a')		# opens file object, creates if not exists
+		self.savefile = hp.File(self.savefile, 'a')
 		try:
-			self.grp	=	self.savefile.create_group('traces')
+			self.grp	=	self.savefile.create_group(self.group)
 		except ValueError:
-			self.grp	=	self.savefile['traces']
-			print("group traces exists, skipping")
+			print("group %s exists, skipping", self.group)
+			self.grp	=	self.savefile[self.group]
 		self.dst	=	self.grp.create_dataset(
-						'ai_'+model+'_'+str(time.localtime()),
+						'ai_'+str(time.localtime()),
 						(self.trlen,),
 						chunks=(60*self.sr,),	# chunks in 1 minute interval
 						maxshape=(None,)
@@ -69,9 +62,9 @@ class AIDAQ(ni.Task):
 		self.ai_channels.add_ai_voltage_chan(self.device)
 
 		self.timing.cfg_samp_clk_timing(
-				self.sr,
+				int(self.sr),
 				sample_mode=ni.constants.AcquisitionType.CONTINUOUS,
-				samps_per_chan=self.sr
+				samps_per_chan=int(self.sr)
 				)
 
 		self.register_every_n_samples_acquired_into_buffer_event(
@@ -81,9 +74,12 @@ class AIDAQ(ni.Task):
 
 	def __every_n_cb(self, task_handle, every_n_samples_event_type,
 			number_of_samples, callback_data):
-		samples = self.read(number_of_samples_per_channel=self.trlen)
 
-		self.__save_data(samples)	
+		# read samples according to trace length
+		samples = self.read(number_of_samples_per_channel=self.trlen)
+		
+		# save trace to hdf5
+		self.__save_data(samples)
 		
 
 		return 0
@@ -91,6 +87,7 @@ class AIDAQ(ni.Task):
 	def __save_data(self, samples):
 		# resize dataset to accept new data
 		self.dst.resize((self.dst.size+self.trlen,))	
+		self.size = self.dst.size
 		self.dst[self.dst.size-self.trlen:] = samples
 		
 		return 0
