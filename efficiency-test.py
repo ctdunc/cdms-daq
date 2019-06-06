@@ -4,29 +4,18 @@ import time
 import nidaqmx as ni
 from AnalogInputDAQ import AIDAQ
 
-freq_cap = 8e5
-freq_cutoff = 2e5
 
-fre = freq_cap
-tra = 100000
-
-def rat(f, t):
-	a = AIDAQ(sr=f,trlen=t,savefile="test.h5")
-	num_f = 0
-	try:
-		starttime = time.time()
-		a.init_config()
-		a.start()
-		input("tet")
-		size = a.size
-		a.close()
-		print('hi i am exec this code')
-		endtime=time.time()
-		print(size/(endtime-starttime))
-	except ni.errors.DaqError:
-		num_f += 1
+f = 6.25e5
+t = f/4
+a = AIDAQ(sr=f,trlen=t,savefile="test.h5")
+a.init_config()
+starttime=time.time()
+a.start()
+input('testing')
+a.close()
+endtime=time.time()
+tes = a.size/(endtime-starttime)
+print(tes)
 
 
 	
-rat(fre,tra)
-

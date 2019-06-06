@@ -10,7 +10,7 @@ class AIDAQ(ni.Task):
 			daq related:
 			- card model (sets trlen, sr)
 			- sr (sample rate) (overrides card model)
-			- tr (trace length) (overrides card model)
+			- tr (trace length) (in samples, overrides model)
 			- device (channel, device, i.e. Dev1/ai0)
 
 			data save related
@@ -41,6 +41,9 @@ class AIDAQ(ni.Task):
 			setattr(self, key, kwargs.get(key, default[key]))
 		self.dt	=	1/self.sr
 		self.df =	self.trlen/self.sr
+		
+		self.sr = int(self.sr)
+		self.trlen = int(self.trlen)
 
 		self.savefile = hp.File(self.savefile, 'a')
 		try:
@@ -62,14 +65,15 @@ class AIDAQ(ni.Task):
 		self.ai_channels.add_ai_voltage_chan(self.device)
 
 		self.timing.cfg_samp_clk_timing(
-				int(self.sr),
+				self.sr,
 				sample_mode=ni.constants.AcquisitionType.CONTINUOUS,
-				samps_per_chan=int(self.sr)
+				samps_per_chan=self.sr
 				)
 
 		self.register_every_n_samples_acquired_into_buffer_event(
 				self.trlen,
 				self.__every_n_cb)
+
 		return 0
 
 	def __every_n_cb(self, task_handle, every_n_samples_event_type,
