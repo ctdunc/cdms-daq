@@ -3,30 +3,61 @@ import h5py as hp
 import numpy as np
 import time
 
-class AIDAQ(ni.Task):
+
+class __VDAQ(ni.Task):
+    """
+    HOC for Voltage Data AcQuisition objects with HDF5 save capabilities.
+    -------------------
+    Parameters:
+    -------
+    - device:   nidaqmx pointer to physical device. ex: 'Dev1/ai0'
+    - savefile: hdf5 savefile. if no file is provided, data will not be saved.
+    - group:    group within hdf5 savefile. default is '/'
+    -------
+    """
+    def __init__(
+            self, 
+            device,
+            savefile='', 
+            group=''):
+
+        ##############################  
+        # HDF5 savefile configuration
+        ##############################  
+
+        if savefile:
+            self.SAVE       =   True
+            self.savefile   =   hp.File(savefile,'a') 
+            if group:
+                try:
+                    self.group      =   self.savefile.create_group(group)
+                except ValueError:
+                    print('HDF5 group ' + group + ' already exists! Skipping creation')
+            else:
+                    self.group      =   self.savefile   # savefile object is also root group per h5py documentation.
+        else:
+            self.SAVE       =   False
+            print('no savefile specified. data will be lost')
+
+        ##############################  
+        # NI task configuration
+        ##############################
+        ni.Task.__init__(self)                              # start NI task object
+        self.device     =   device
+
+        self.ai_channels.add_ai_voltage_chan(self.device)   # creates analog input voltage channel at specified device
+        
+
+
+class cVDAQ(__VDAQ):
+        """
+        continuous Volatage Data AcQuisition extends __VDAQ
+        ---------
+        Parameters:
+
+        """
 	def __init__(self, **kwargs):		
-		""" 
-		meaningful keyword args:
-			daq related:
-			- card model (sets trlen, sr)
-			- sr (sample rate) (overrides card model)
-			- tr (trace length) (in samples, overrides model)
-			- device (channel, device, i.e. Dev1/ai0)
-
-			data save related
-			- savefile (must end in .h5)
-			- group (optional, set to 'traces' if none)
-			- dataset (none, or dict with parameter names)
-		"""
-		# initialize self as nidaqmx task object
-		ni.Task.__init__(self)
-
-		# handle setting default values dynamically, so that further keys can be added later
-		# with more advanced behavior/priority in setting defaults
-		model	=	{
-					"NI6120": 8e5,
-					"NI6374": 3.5e6
-				}
+            __VDAQ.__init__(self)
 		default = 	{
 					'sr' : model.get(kwargs.get('model', ''), 1e5), 		  # prioritizes setting sample rate by max card setting
 					'trlen' : kwargs.get('sr', model.get(kwargs.get('model',''),1e5)),# set trace length=sample rate by default
