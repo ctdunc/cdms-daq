@@ -1,5 +1,4 @@
-#!/home/connor/daq-cont/env/bin/python3
-
+#!/home/connor/pyle/tesdaq/env/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys

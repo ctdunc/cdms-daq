@@ -1,9 +1,7 @@
 import nidaqmx as ni
-import numpy as np
-from flask_socketio import SocketIO
-from celery import Task
+import numpy as np from flask_socketio import SocketIO
 
-class NI6120(Task):
+class NI6120:
     ignore_result = True
     
     def __init__(self, 
