@@ -7,7 +7,6 @@ import time
 import re
 import ast
 
-to_dict = lambda st: ast.literal_eval(re.search('({.+})', st).group(0))
 # Defines some states
 WAIT = 0
 RUN = 1
@@ -21,11 +20,12 @@ CMD_CONFIG = "CONFIG"
 class DAQListener:
     def __init__(
             self,
-            channels,
+            redis_channels=['Dev1/ai0'],
             redis_host='localhost',
             redis_password='',
             redis_port=6379,
-            redis_database=0):
+            redis_database=0,
+            **kwargs):
 
         """ Abstraction for listening to redis messages to execute DAQ commands
 
@@ -37,15 +37,15 @@ class DAQListener:
         redis_database: Redis DB to be used (default, 0).
 
         """
-        r = redis.Redis(
-            host=redis_host,
-            password=redis_password,
-            port=redis_port,
-            db=redis_database
-            )
         try:
+            r = redis.Redis(
+                host=redis_host,
+                password=redis_password,
+                port=redis_port,
+                db=redis_database
+                )
             self.pubsub = r.pubsub()
-            for c in channels:
+            for c in redis_channels:
                 self.pubsub.subscribe(c)
             self.STATE = WAIT
 
@@ -54,11 +54,17 @@ class DAQListener:
             self.STATE = REDIS_FAILURE
             print(e)
 
-    def configure(self):
+    def configure(self, **kwargs):
+        # Should only take in keyword args as a parameter,
+        # that will be passed as JSON to Redis from client end
         raise NotImplementedError("class {} must implement configure()".format(type(self).__name__))
-    def start(self):
+    def start(self, **kwargs):
+        # Should only take in keyword args as a parameter,
+        # that will be passed as JSON to Redis from client end
         raise NotImplementedError("class {} must implement start()".format(type(self).__name__))
-    def stop(self):
+    def stop(self, **kwargs):
+        # Should only take in keyword args as a parameter,
+        # that will be passed as JSON to Redis from client end
         raise NotImplementedError("class {} must implement stop()".format(type(self).__name__))
 
     def wait(self):
@@ -66,17 +72,23 @@ class DAQListener:
             message = self.pubsub.get_message()
             if message:
                 command = message['data']
-
                 try:
                     command = str(command.decode("utf-8"))
                 except AttributeError as e:
                     command = str(command)
-
-                if command == CMD_START:
-                    self.start()
+                passed_args = _to_dict(command)
+                if command.startwisth(CMD_START):
+                    self.start(**passed_args)
                 if command.startswith(CMD_CONFIG):
-                    parameters = to_dict(command)
-                    self.configure(**parameters)
-                if command == CMD_STOP:
-                    self.stop()
+                    self.configure(**passed_args)
+                if command.startswith(CMD_STOP):
+                    self.stop(**passed_args)
             time.sleep(1)
+
+
+def _to_dict(st):
+    """
+    Convienence Method to return Dict from Redis input
+    """
+    return ast.literal_eval(re.search('({.+})', st).group(0))
+

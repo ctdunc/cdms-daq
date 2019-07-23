@@ -1,25 +1,26 @@
 import nidaqmx as ni
-import numpy as np from flask_socketio import SocketIO
+import numpy as np 
+from flask_socketio import SocketIO
+from daq_listener import DAQListener
 
-class NI6120:
-    ignore_result = True
-    
-    def __init__(self, 
-            evt_per_trace, 
-            trace_per_sec, 
-            ai_chans):
+class NI6120(DAQListener):
+    def __init__(
+            self,
+            ai_chans,
+            evt_per_trace,
+            trace_per_sec,
+            **kwargs):
         """
         Class for remote management of national instruments 6120 digitizer.
         Likely could benefit from abstraction/work for other devices.
 
-        Parameters
+        Arguments 
         -----------
         evt_per_trace:  number of samples taken *per channel* per trace.
         trace_per_sec:  number of traces taken per second.
         ai_chans:       array of channels to take data from (e.g. Dev1/ai0).
-        socket:         
         """
-
+        super(NI6120, self).__init__(**kwargs)
         self.SOCKETIO_CONFIGURED = False
         self.SAVEFILE_CONFIGURED = False
 
@@ -27,29 +28,27 @@ class NI6120:
         self.tps = trace_per_sec
         self.frq = self.ept*self.tps # Frequency (samples/second).
         self.downsample_ratio = np.ceil(self.ept/1000)
-        
         self.task = ni.Task()
 
         for channel in ai_chans:
             try:
-                self.task.ai_channels.add_ai_voltagechan(channel)
+                self.task.ai_channels.add_ai_voltage_chan(channel)
             except ni.errors.DaqError as e:
                 raise e
         self.task.cfg_samp_clk_timing(
-                self.frq, 
-                sample_mode=ni.constants.AcquisitionType.CONTINUOUS,
-                samps_per_chan=self.ept)
+            self.frq,
+            sample_mode=ni.constants.AcquisitionType.CONTINUOUS,
+            samps_per_chan=self.ept)
         self.task.register_every_n_samples_acquired_into_buffer_event(self.ept, self.__every_n_cb)
 
-    def __every_n_cb(self, 
-            task_handle, 
-            every_n_samples_event_type, 
-            number_of_sampels, 
+    def __every_n_cb(
+            self,
+            task_handle,
+            every_n_samples_event_type,
+            number_of_sampels,
             callback_data):
-    
         d = self.task.read(number_of_samples_per_channel=self.ept)
         print(d)
-        
         if self.SOCKETIO_CONFIGURED:
             emit = []
             for data in d:
@@ -60,30 +59,29 @@ class NI6120:
             # do some save action
             print("TODO HERE")
         return 0
-    
-    def configure_savefile(self, filepath):
+    def __configure_savefile(self, filepath):
         """
         Configures save location + protocol for data. Yet to be implemented.
         """
 
         return 0
 
-    def configure_socketio(self, message_queue, channel):
+    def __configure_socketio(self, message_queue, channel):
         """
-        Configures Socketio 
+        Configures Socketio
         Parameters
         ----------
         message_queue:  message queue for socketio instance (e.g. "redis://")
         channel:        socketio namespace on which to emit events (e.g. "newTrace")
         """
         self.sio = SocketIO(message_queue=message_queue)
-        self.channel=channel
+        self.channel = channel
         self.SOCKETIO_CONFIGURED = True
 
         return 0
-
-    def run(self, source, *args, **kwargs):
-        self.source = source
-        
-        self.task.start()
-        
+    def configure(self):
+        return 0
+    def start(self):
+        return 0
+    def stop(self):
+        return 0
