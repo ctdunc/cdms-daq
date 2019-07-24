@@ -1,4 +1,4 @@
-![logo][logo.png]
+![logo][./logo.png]
 # tesdaq
 This repository contains code used by the Pyle Group at UC Berkeley to continuously acquire voltage measurements from an NI6120 digitizer. 
 Specifically, it is designed to facilitate unifying DAQ systems and devices over many computers and even experiment locations, as well as provide a simple backend implementation to our web-based pulseviewer, [adcscope](https://github.com/ucbpylegroup/adcscope).
