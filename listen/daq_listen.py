@@ -75,6 +75,19 @@ class DAQListener:
                     self.stop(**passed_args)
             time.sleep(1)
 
+class TestListener(DAQListener):
+    def __init__(self, **kwargs):
+        super(TestListener, self).__init__(**kwargs)
+
+    def configure(self, **kwargs):
+        print("RECIEVED MESSAGE CONFIG", kwargs)
+        return 0
+    def start(self, **kwargs):
+        print("RECIEVED MESSAGE START", kwargs)
+        return 0
+    def stop(self, **kwargs):
+        print("RECIEVED MESSAGE STOP", kwargs)
+        return 0
 
 def _to_dict(st):
     """
