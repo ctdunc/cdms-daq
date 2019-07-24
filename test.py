@@ -1,4 +1,4 @@
-from ni_6120 import NI6120
+from listen.ni_6120 import NI6120
 
-n = NI6120(["Dev1/ai0"], 10,10)
-
+nn = NI6120(["hell"],10,2)
+nn.wait()
