@@ -1,26 +1,16 @@
 """TODO:
     finish dosctring
 """
-
+from daq_constants import states, signals
 import redis
 import time
 import re
 import ast
 
-# Defines some states
-WAIT = 0
-RUN = 1
-REDIS_FAILURE = -1
-
-# Define commands passed from redis
-CMD_START = "START"
-CMD_STOP = "STOP"
-CMD_CONFIG = "CONFIG"
-
 class DAQListener:
     def __init__(
             self,
-            redis_channels=['Dev1/ai0'],
+            redis_channels=['def'],
             redis_host='localhost',
             redis_password='',
             redis_port=6379,
@@ -47,11 +37,11 @@ class DAQListener:
             self.pubsub = r.pubsub()
             for c in redis_channels:
                 self.pubsub.subscribe(c)
-            self.STATE = WAIT
+            self.STATE = states.WAIT
 
         # TODO: More specific exception here
         except Exception as e:
-            self.STATE = REDIS_FAILURE
+            self.STATE = states.REDIS_FAILURE
             print(e)
 
     def configure(self, **kwargs):
@@ -68,7 +58,7 @@ class DAQListener:
         raise NotImplementedError("class {} must implement stop()".format(type(self).__name__))
 
     def wait(self):
-        while self.STATE == WAIT:
+        while self.STATE == states.WAIT:
             message = self.pubsub.get_message()
             if message:
                 command = message['data']
@@ -77,11 +67,11 @@ class DAQListener:
                 except AttributeError as e:
                     command = str(command)
                 passed_args = _to_dict(command)
-                if command.startwisth(CMD_START):
+                if command.startswith(signals.START):
                     self.start(**passed_args)
-                if command.startswith(CMD_CONFIG):
+                if command.startswith(signals.CONFIG):
                     self.configure(**passed_args)
-                if command.startswith(CMD_STOP):
+                if command.startswith(signals.STOP):
                     self.stop(**passed_args)
             time.sleep(1)
 
@@ -90,5 +80,9 @@ def _to_dict(st):
     """
     Convienence Method to return Dict from Redis input
     """
-    return ast.literal_eval(re.search('({.+})', st).group(0))
+    dict_string = re.search('({.+})', st)
+    if dict_string:
+        return ast.literal_eval(dict_string.group(0))
+    else:
+        return {}
 
