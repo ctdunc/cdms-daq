@@ -31,19 +31,21 @@ In order to develop or test this project for yourself, ensure that you have a wo
 There are zero guarantees that this will work on either Windows or MacOS. You'll probably have better luck with Mac, but best results will come from using [CentOS](https://centos.org)-based Linux distributions. This application is developed on [Arch](https://www.archlinux.org/), and [Scientific Linux 7](https://www.scientificlinux.org/). 
 Device-specific development is done only on Scientific Linux 7.
 
-With these requirements fulfilled, simply clone this repository using 
+To use this library, simply open a virtual environment using
 ```bash
-[user@computer:~/folder/tesdaq]$ git clone https://github.com/ucbpylegroup/tesdaq
+[user@computer]$ python -m venv env
+[user@computer]$ source env/bin/activate
+[user@computer]$ pip install --upgrade tesdaq
 ```
-create and activate a virtual environment using
-```bash
-[user@computer:~/folder/tesdaq]$ python -m venv env
-[user@computer:~/folder/tesdaq]$ source env/bin/activate
+Then, you can import modules in the following manner:
+```python
+from tesdaq.listen.daq_listen import DAQListener
+from tesdaq.listen.ni_6120 import NI6120
+
+from tesdaq.command.daq_cmd import DAQCommander
 ```
-and, install any dependencies required by the package into your new virtual environment using
-```bash
-[user@computer:~/folder/tesdaq]$ pip install -r pydeps.txt
-```
+
+Plans exist to shorten this import structure.
 
 ### Testing
 tesdaq by default does not assume which machines any programs are running on. Rather, it uses a [pub/sub](https://redis.io/topics/pubsub) structure to issue/receive commands and data. Thus, a minimal working example requires a _commander_ and a _listener_. 
@@ -52,7 +54,7 @@ The simplest case is a program that implements a single listener on a default ch
 Such a listener might look like this:
 ```python
 # ./sample_listener.py
-from listen.daq_listen import TestListener
+from tesdaq.listen.daq_listen import TestListener
 
 test_listener = TestListener() # if your redis parameters are different (port, db etc) change them here
 test_listener.wait() # sends the listener into a loop where it waits for signals
@@ -63,7 +65,7 @@ Let's create a new commander that issues a `START` command, waits for ten second
 
 ```python
 # ./sample_commander.py
-from command.daq_cmd import DAQCommander
+from tesdaq.command.daq_cmd import DAQCommander
 import time
 
 test_commander = DAQCommander() # again, make sure you are connected to your redis instance
@@ -157,7 +159,7 @@ You can then instantly hook the control into a form on a website somewhere, and 
 A small sample might be
 ```python
 from flask import Flask, render_template
-from command.daq_cmd import DAQCommander
+from tesdaq.command.daq_cmd import DAQCommander
 
 app = Flask(__name__, static_folder='./static/folder', template_folder='./template')
 

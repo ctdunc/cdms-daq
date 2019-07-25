@@ -1,4 +1,4 @@
-from daq_constants import states, signals
+from ..daq_constants import states, signals
 import redis
 import time
 import re

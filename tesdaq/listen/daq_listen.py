@@ -1,12 +1,11 @@
 """TODO:
     finish dosctring
 """
-from daq_constants import states, signals
 import redis
 import time
 import re
 import ast
-
+from ..daq_constants import states, signals
 class DAQListener:
     def __init__(
             self,

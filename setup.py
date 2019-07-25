@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="tesdaq",
-    version="0.0.1",
+    version="0.0.4",
     author="Connor Duncan",
     author_email="ctdunc@berkeley.edu",
     description="DAQ Control using Redis as a message broker.",
@@ -22,4 +22,8 @@ setuptools.setup(
         "Topic :: Scientific/Engineering :: Physics",
         "Intended Audience :: Science/Research"
     ],
+    install_requires=[
+        "numpy==1.16.4",
+        "redis==3.2.1",
+        ]
 )
