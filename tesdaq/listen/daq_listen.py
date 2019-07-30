@@ -9,6 +9,8 @@ from ..daq_constants import states, signals
 class DAQListener:
     def __init__(
             self,
+            device_name,
+            device_config,
             redis_channels=['def'],
             redis_host='localhost',
             redis_password='',
@@ -20,6 +22,8 @@ class DAQListener:
 
         Arguments:
         ----------
+        device_name:    specifies redis KEY corresponding to device config.
+        device_config:  required parameter that gets turned into json as allowable things the device may do (see doc/protocol.pdf for an explanation).
         channels:   Array of strings which redis will subscribe to as channels. (Must be an array!)
         redis_host: Host to which redis connects (e.g. 'localhost')
         redis_port: Port which redis should use to connect (by default is 6379)
@@ -75,8 +79,8 @@ class DAQListener:
             time.sleep(1)
 
 class TestListener(DAQListener):
-    def __init__(self, **kwargs):
-        super(TestListener, self).__init__(**kwargs)
+    def __init__(self,device_name, device_config,**kwargs):
+        super(TestListener, self).__init__(device_name,device_config,**kwargs)
 
     def configure(self, **kwargs):
         print("RECIEVED MESSAGE CONFIG", kwargs)
