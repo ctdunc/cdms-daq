@@ -2,6 +2,7 @@ from ..daq_constants import states, signals
 import redis
 import time
 import re
+
 class DAQCommander:
     def __init__(
             self,
@@ -33,7 +34,7 @@ class DAQCommander:
 
         except Exception as e:
             print(e)
-
+    
     def configure(self, **kwargs):
         for c in self.channels:
             self.r.publish(c,signals.CONFIG + ' ' + str(kwargs))
