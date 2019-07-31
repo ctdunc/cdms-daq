@@ -1,5 +1,4 @@
 env/
 test.py
 node_modules/
-__pycache__
 test_control.py
