@@ -1,4 +1,5 @@
-from ..daq_constants import states, signals
+from ..daq_constants import states, signals, config
+from ..translate import redis_to_dict
 import redis
 import time
 import re
@@ -6,11 +7,7 @@ import re
 class DAQCommander:
     def __init__(
             self,
-            redis_channels=['def'],
-            redis_host='localhost',
-            redis_password='',
-            redis_port=6379,
-            redis_database=0,
+            redis_instance,
             **kwargs):
 
         """ Convenience class to issue Redis messages to execute specific commands.
@@ -23,24 +20,24 @@ class DAQCommander:
         redis_database: Redis DB to be used (default, 0).
 
         """
-        self.channels = redis_channels
         try:
-            self.r = redis.Redis(
-                host=redis_host,
-                password=redis_password,
-                port=redis_port,
-                db=redis_database
-                )
-
+            self.r = redis_instance
         except Exception as e:
             print(e)
-    
-    def configure(self, **kwargs):
-        for c in self.channels:
+    def configure(self, redis_channels, **kwargs):
+        for c in redis_channels:
             self.r.publish(c,signals.CONFIG + ' ' + str(kwargs))
-    def start(self, **kwargs):
-        for c in self.channels:
+    def start(self, redis_channels, **kwargs):
+        for c in redis_channels:
             self.r.publish(c,signals.START + ' ' + str(kwargs))
-    def stop(self, **kwargs):
-        for c in self.channels:
+    def stop(self, redis_channels, **kwargs):
+        for c in redis_channels:
             self.r.publish(c,signals.STOP + ' ' + str(kwargs))
+    def get_active_devices(self):
+        devices = [key.decode("utf-8") for key in self.r.keys() if key.decode("utf-8").startswith(config.DEV_KEY_PREFIX)]
+        devices = [dev.replace(config.DEV_KEY_PREFIX,'') for dev in devices]
+        return devices
+    def get_device_config(self, device):
+        cfg = redis_to_dict(self.r.get(config.DEV_KEY_PREFIX+device))
+        return cfg
+

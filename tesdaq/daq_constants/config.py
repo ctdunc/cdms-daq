@@ -7,7 +7,7 @@ but avoiding explicitly using their library for cross-compatibility.
 If these values are indeed configured, they will be passed to the server as dicts.
 If not, they shouldn't render options on the frontend.
 """
-
+DEV_KEY_PREFIX = "_tesdaq.dev."
 # Allowable Channels
 ANALOG_IN = "cfg_ai_chans"
 ANALOG_OUT = "cfg_ao_chans"

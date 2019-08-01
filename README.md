@@ -39,25 +39,57 @@ To use this library, simply open a virtual environment using
 ```
 Then, you can import modules in the following manner:
 ```python
-from tesdaq.listen.daq_listen import DAQListener
-from tesdaq.listen.ni_6120 import NI6120
+from tesdaq.listen import DAQListener
+from tesdaq.listen.national_instruments import PCI6120
 
-from tesdaq.command.daq_cmd import DAQCommander
+from tesdaq.command import DAQCommander
 ```
-
-Plans exist to shorten this import structure.
 
 ### Testing
 tesdaq by default does not assume which machines any programs are running on. Rather, it uses a [pub/sub](https://redis.io/topics/pubsub) structure to issue/receive commands and data. Thus, a minimal working example requires a _commander_ and a _listener_. 
 The simplest case is a program that implements a single listener on a default channel, and prints a message when a signal is received.
+Each listener must have some predefined constraints that tell any commander in advance which actions are defined for the listener, and which might break the acquisition device.
+These parameters are as follows (more explanation can be found in [doc/protocol.pdf](https://github.com/ucbpylegroup/tesdaq/blob/master/doc/protocol.pdf)).
+```python
+{
+	channel_type:	{	# e.g. "Analog Input" or "ai_in"
+		channels: ["Dev1/ai0",...], # physical names of channels corresponding to input functions
+		max_sample_rate: some_large_int,
+		min_sample_rate: some_small_int,
+		sr_is_per_chan:	False, # means if max sr is 800kS/s, with two channels, each can do 400 kS/s
+		trigger_opts: [] # string values correspond to functions on each channel.
+		},
+	is_currently_running: False
+}
+```
+
+There are currently four predefined `channel_type`s:
+
+* `cfg_analog_input`
+* `cfg_digital_input`
+* `cfg_analog_output`
+* `cfg_digital_output`
 
 Such a listener might look like this:
 ```python
-# ./sample_listener.py
-from tesdaq.listen.daq_listen import TestListener
+# ./cworker.py
 
-test_listener = TestListener() # if your redis parameters are different (port, db etc) change them here
-test_listener.wait() # sends the listener into a loop where it waits for signals
+from tesdaq.listen import TestListener
+import redis
+r = redis.Redis() # if your redis instance is not the default, update it's parameters here.
+test_listener = TestListener(
+        "test", 
+        {
+        "cfg_analog_input":{
+            "channels": ["Dev1/ai0"],
+            "max_sample_rate": 100000,
+            "min_sample_rate": 100,
+            "sr_is_per_chan": False,
+            "trigger_opts": []
+            }
+        },
+        r)
+test_listener.wait() #
 ```
 
 Similarly, we create a new `DAQCommander`, which is capable of issuing messages to the listener, which will act upon their reception.
@@ -116,7 +148,7 @@ If you write code that executes _synchronously_  with your `wait()` loop, be sur
 A basic (pythonic, but gets the point across) example might be
 
 ```python
-... some other class stuff here ...
+# ... some other class stuff here ... # 
 def wait(self): 
 	while self.STATE == states.WAIT:
             message = self.pubsub.get_message()
@@ -144,7 +176,7 @@ def start(self, **kwargs):
 		else:
 			continue
 	self.stop(stop_args)
-... potentially more class stuff here ...
+# ... potentially more class stuff here ... #
 ```
 
 If you do add any classes/devices to be compatible with this library, be sure to [submit a pull request](https://github.com/ucbpylegroup/tesdaq/pulls) so that others can use your code!
@@ -162,8 +194,8 @@ from flask import Flask, render_template
 from tesdaq.command.daq_cmd import DAQCommander
 
 app = Flask(__name__, static_folder='./static/folder', template_folder='./template')
-
-daqctl_for_spec_dev = DAQCommander(redis_channels=["specific_device"]) # use appropriate redis arguments here
+r = redis.Redis()
+daqctl_for_spec_dev = DAQCommander(r)
 
 @app.route("/")
 def render():
@@ -172,7 +204,7 @@ def render():
 @app.route("/config_start_form")
 def config(json):
 	# expands form JSON as keword args
-	daqctl.configure(**json)
+	daqctl.configure("my_dev_channel",**json)
 
 	return 0
 

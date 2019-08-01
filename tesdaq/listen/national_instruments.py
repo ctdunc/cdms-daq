@@ -1,9 +1,9 @@
 import nidaqmx as ni
 import numpy as np 
 from flask_socketio import SocketIO
-from listen.daq_listen import DAQListener
+from listen import DAQListener
 
-class NI6120(DAQListener):
+class PCI6120(DAQListener):
     def __init__(
             self,
             ai_chans,
@@ -17,7 +17,7 @@ class NI6120(DAQListener):
         trace_per_sec:  number of traces taken per second.
         ai_chans:       array of channels to take data from (e.g. Dev1/ai0).
         """
-        super(NI6120, self).__init__(ai_chans=ai_chans,**kwargs)
+        super(PCI6120, self).__init__(ai_chans=ai_chans,**kwargs)
         self.__configure_ni_task(
             ai_chans=ai_chans,
             evt_per_trace=evt_per_trace,

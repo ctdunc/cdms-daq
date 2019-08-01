@@ -1,25 +1,22 @@
-"""TODO:
-    finish dosctring
-"""
-import redis
+name = "listen"
+
+from redis import Redis
 import inspect
 import time
 import re
 import ast
 from ..daq_constants import states, signals, config
+from ..translate import redis_to_dict
+from redis.exceptions import ConnectionError
 
 class DAQListener:
     def __init__(
             self,
             identifier,
             device_config,
-            redis_channels=['def'],
-            redis_host='localhost',
-            redis_password='',
-            redis_port=6379,
-            redis_database=0,
+            redis_instance,
+            redis_channels=['default'],
             **kwargs):
-
         """ Abstraction for listening to redis messages to execute DAQ commands
         Also defines necessary startup procedures to make sure everybody communicating with
         the database knows what tasks are defined where.
@@ -33,34 +30,26 @@ class DAQListener:
         redis_port: Port which redis should use to connect (by default is 6379)
         redis_database: Redis DB to be used (default, 0).
         """
-        self.id = identifier
+        
+        self.id = "_tesdaq.dev."+identifier
         self.redis_channels = redis_channels
         self.rdb_val = {"is_currently_running": False}
-        try:
-            self.r = redis.Redis(
-                host=redis_host,
-                password=redis_password,
-                port=redis_port,
-                db=redis_database
-                )
-
-            self.pubsub = self.r.pubsub()
-            for c in redis_channels:
-                self.pubsub.subscribe(c)
-        # TODO: More specific exception here
-        except Exception as e:
-            # TODO: logger
-            print(e)
+        self.r = redis_instance
+        self.pubsub = self.r.pubsub()
+        for c in redis_channels:
+            self.pubsub.subscribe(c)
         # Checks for known config options and sets them if they're contained in device_config.
         for key, parameters in device_config.items():
             self.__set_chan_type_opt(key, **parameters)
-        # Check if id is reserved.
-        # Only do this on instantiation, as listener must be able to change value of key later.
+
+        # Check if id is already in use 
+        # Only do this on instantiation, as listener must be able to change value of own key later.
         val = self.r.get(self.id)
         if val:
             raise ValueError("A listener with id \"{}\" already exists. Please use a different id, or stop that worker, and unset the redis key.".format(self.id))
         else:
             self.r.set(self.id, str(self.rdb_val))
+
     def __set_chan_type_opt(
             self,
             channel_type,
@@ -73,7 +62,8 @@ class DAQListener:
         """
         Should take in keyword args defined in doc/protocol.pdf section 3.1
         This implementation *only* sets values in the redis database.
-        Inheriting classes should define this function.
+        Inheriting classes should define this function,
+        unless they use the default channel types outlined in doc/protocol.pdf
         """
         self.rdb_val[channel_type] = {
             "channels": channels,
@@ -103,7 +93,7 @@ class DAQListener:
                     command = str(command.decode("utf-8"))
                 except AttributeError as e:
                     command = str(command)
-                passed_args = _to_dict(command)
+                passed_args = redis_to_dict(command)
                 if command.startswith(signals.START):
                     self.start(**passed_args)
                 if command.startswith(signals.CONFIG):
@@ -114,8 +104,8 @@ class DAQListener:
 
 
 class TestListener(DAQListener):
-    def __init__(self,device_name, device_config,**kwargs):
-        super(TestListener, self).__init__(device_name,device_config,**kwargs)
+    def __init__(self,device_name, device_config, redis_instance, **kwargs):
+        super(TestListener, self).__init__(device_name,device_config, redis_instance, **kwargs)
     def configure(self, **kwargs):
         print("RECIEVED MESSAGE CONFIG", kwargs)
         return 0
@@ -125,14 +115,4 @@ class TestListener(DAQListener):
     def stop(self, **kwargs):
         print("RECIEVED MESSAGE STOP", kwargs)
         return 0
-
-def _to_dict(st):
-    """
-    Convienence Method to return Dict from Redis input
-    """
-    dict_string = re.search('({.+})', st)
-    if dict_string:
-        return ast.literal_eval(dict_string.group(0))
-    else:
-        return {}
 

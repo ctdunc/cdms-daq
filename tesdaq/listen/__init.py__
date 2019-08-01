@@ -1,3 +1,0 @@
-name = "listen"
-
-import ..daq_constants
