@@ -113,6 +113,19 @@ This is a fairly limited code pattern, so more features will probably be added i
 
 Also, if the variable \texttt{is\_currently\_running} doesn't exist, the Redis database should block all commands issued to that channel (because you don't want to accidentally run two tasks on a card at once).
 
+\subsubsection{Predefined Channel Keys}
+A few predefined channel keys exist that will automatically call back certain functions that should be implemented for \texttt{DAQListener} and child classes.
+
+These are all located within \texttt{daq\_constants.config.CHAN\_CFG}, and are as follows.
+All of these call back to the function of the same name implemented by their classes, passing their parameters as keyword args.
+They all also will have corresponding ``nice names'' in the frontend from \texttt{adcscope} that renders them prettily.
+\begin{itemize}
+	\item \texttt{cfg\_analog\_input}
+	\item \texttt{cfg\_digital\_input}
+	\item \texttt{cfg\_analog\_output}
+	\item \texttt{cfg\_digital\_output}
+\end{itemize}
+
 \subsection{Why this is better}
 I chose to do it this way as opposed to use something like an SQL database to store this information for several reasons.
 \begin{itemize}

@@ -7,12 +7,12 @@ import time
 import re
 import ast
 from ..daq_constants import states, signals, config
+
 class DAQListener:
     def __init__(
             self,
-            device_name,
+            identifier,
             device_config,
->>>>>>> b8f0cdf7a66e93410791ee8e3b29415313ad4c8a
             redis_channels=['def'],
             redis_host='localhost',
             redis_password='',
@@ -21,25 +21,21 @@ class DAQListener:
             **kwargs):
 
         """ Abstraction for listening to redis messages to execute DAQ commands
+        Also defines necessary startup procedures to make sure everybody communicating with
+        the database knows what tasks are defined where.
 
         Arguments:
         ----------
-        device_name:    specifies redis KEY corresponding to device config.
+        identifier:    specifies redis KEY corresponding to device config.
         device_config:  required parameter that gets turned into json as allowable things the device may do (see doc/protocol.pdf for an explanation).
-        channels:   Array of strings which redis will subscribe to as channels. (Must be an array!)
+        redis_channels:   Array of strings which redis will subscribe to as channels. (Must be an array!)
         redis_host: Host to which redis connects (e.g. 'localhost')
         redis_port: Port which redis should use to connect (by default is 6379)
         redis_database: Redis DB to be used (default, 0).
         """
         self.id = identifier
         self.redis_channels = redis_channels
-
-        self.allowable_config['ai_channels'] = kwargs.get('ai_chans', None) 
-        self.allowable_config['di_channels'] = kwargs.get('di_chans', None)
-        self.allowable_config['ao_channels'] = kwargs.get('ao_chans', None)
-        self.allowable_config['di_channels'] = kwargs.get('do_chans', None)
-
-        # Make sure that these exist, so they can be set when the worker is turned on
+        self.rdb_val = {"is_currently_running": False}
         try:
             self.r = redis.Redis(
                 host=redis_host,
@@ -47,22 +43,45 @@ class DAQListener:
                 port=redis_port,
                 db=redis_database
                 )
-            self.pubsub = r.pubsub()
+
+            self.pubsub = self.r.pubsub()
             for c in redis_channels:
                 self.pubsub.subscribe(c)
-            self.STATE = states.WAIT
         # TODO: More specific exception here
         except Exception as e:
-            self.STATE = states.REDIS_FAILURE
+            # TODO: logger
             print(e)
-        
-        # Check for optional functions, and send the frontend those allowable parameters
-        self.allowable_config = {}
-        for val in config.CHAN_CFG:
-            func = getattr(self, val, None)
-            if callable(func):
-                self.allowable_config[val] = inspect.getfullargspec(func)
-        
+        # Checks for known config options and sets them if they're contained in device_config.
+        for key, parameters in device_config.items():
+            self.__set_chan_type_opt(key, **parameters)
+        # Check if id is reserved.
+        # Only do this on instantiation, as listener must be able to change value of key later.
+        val = self.r.get(self.id)
+        if val:
+            raise ValueError("A listener with id \"{}\" already exists. Please use a different id, or stop that worker, and unset the redis key.".format(self.id))
+        else:
+            self.r.set(self.id, str(self.rdb_val))
+    def __set_chan_type_opt(
+            self,
+            channel_type,
+            channels=[],
+            max_sample_rate=1000, # hz
+            min_sample_rate=10,
+            sr_is_per_chan=False,
+            trigger_opts=[],
+        ):
+        """
+        Should take in keyword args defined in doc/protocol.pdf section 3.1
+        This implementation *only* sets values in the redis database.
+        Inheriting classes should define this function.
+        """
+        self.rdb_val[channel_type] = {
+            "channels": channels,
+            "max_sample_rate": max_sample_rate,
+            "min_sample_rate": min_sample_rate,
+            "sr_is_per_chan": sr_is_per_chan,
+            "trigger_opts": trigger_opts
+        }
     def configure(self, **kwargs):
         # Should only take in keyword args as a parameter,
         # that will be passed as JSON to Redis from client end
@@ -75,11 +94,8 @@ class DAQListener:
         # Should only take in keyword args as a parameter,
         # that will be passed as JSON to Redis from client end
         raise NotImplementedError("class {} must implement stop()".format(type(self).__name__))
-    def set_allowable_config(self):
-        self.r.set(self.id, self.allowable_config)
-
     def wait(self):
-        while self.STATE == states.WAIT:
+        while True:
             message = self.pubsub.get_message()
             if message:
                 command = message['data']
@@ -94,9 +110,8 @@ class DAQListener:
                     self.configure(**passed_args)
                 if command.startswith(signals.STOP):
                     self.stop(**passed_args)
-                if command.startwith(signals.UPDATE_CFG):
-                    self.set_allowable_config():
             time.sleep(1)
+
 
 class TestListener(DAQListener):
     def __init__(self,device_name, device_config,**kwargs):
