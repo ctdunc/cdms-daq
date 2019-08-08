@@ -10,26 +10,25 @@ from ..translate import redis_to_dict
 from redis.exceptions import ConnectionError
 
 class DAQListener:
+    """DAQListener"""
     def __init__(
             self,
-            identifier,
-            device_config,
-            redis_instance,
-            **kwargs):
-        """ Abstraction for listening to redis messages to execute DAQ commands
-        Also defines necessary startup procedures to make sure everybody communicating with
-        the database knows what tasks are defined where.
+            identifier: str,
+            device_config: dict,
+            redis_instance: Redis):
+        """__init__
 
-        Arguments:
+        Parameters
         ----------
-        identifier:    specifies redis KEY corresponding to device config, and PUBSUB channel to subscribe to.
-        device_config:  required parameter that gets turned into json as allowable things the device may do (see doc/protocol.pdf for an explanation).
-        redis_host: Host to which redis connects (e.g. 'localhost')
-        redis_port: Port which redis should use to connect (by default is 6379)
-        redis_database: Redis DB to be used (default, 0).
+        identifier: str
+            Unique string used to get and set values in redis database.
+        device_config: dict
+            Constraints on possible actions by DAQ. See doc/protocol.pdf for more information.
+        redis_instance: redis.Redis
+            Redis instance which listener should connect to.
         """
         
-        self.id = "_tesdaq.dev."+identifier
+        self.id = config.DEV_KEY_PREFIX+identifier
         self.rdb_val = {"is_currently_running": False}
         self.r = redis_instance
         self.pubsub = self.r.pubsub()
@@ -46,21 +45,32 @@ class DAQListener:
         else:
             self.r.set(self.id, str(self.rdb_val))
 
-    """ Name Mangled functions other classes shouldn't call """
     def __set_chan_type_opt(
             self,
             channel_type,
             channels=[],
-            max_sample_rate=1000, # hz
+            max_sample_rate=1000,
             min_sample_rate=10,
             sr_is_per_chan=False,
             trigger_opts=[],
         ):
-        """
-        Should take in keyword args defined in doc/protocol.pdf section 3.1
-        This implementation *only* sets values in the redis database.
-        Inheriting classes should define this function,
-        unless they use the default channel types outlined in doc/protocol.pdf
+        """__set_chan_type_opt
+        Sets allowable options for given channel type.
+
+        Parameters
+        ----------
+        channel_type: str
+            Type of channel to set option for (e.g. "analog input").
+        channels: list
+            Channels which are of type channel_type. Each channel should correspond to a physical location on the device (e.g. "Dev1/ai0" for an NI digitizer).
+        max_sample_rate: int
+            Maximum sample/write rate of given type.
+        min_sample_rate: int
+            Minimum sample/write rate of given type.
+        sr_is_per_chan: bool
+            Determines whether constraints should scale based on the number of active channels (i.e. true -> max sample rate of 800kS/s on one active channel is 400kS/s on two).
+        trigger_opts: list
+            List of strings detailing allowable trigger settings.
         """
         self.rdb_val[channel_type] = {
             "channels": channels,
@@ -70,27 +80,58 @@ class DAQListener:
             "trigger_opts": trigger_opts
         }
     def __compare_update_rdb(self):
+        """compares local state to redis database state, and updates redis with any differences"""
         db_val = redis_to_dict(self.r.get(self.id))
         if db_val != self.rdb_val:
             self.r.set(self.id, str(self.rdb_val))
     def __update_run_state(self, sig):
+        """__update_run_state
+            Checks incoming signal to determine what run state is. 
+            Run state determines whether config(), start() can be called, 
+            as updating task configurations while DAQ is active can lead to hardware failure on some devices.
+
+        Parameters
+        ----------
+        sig: str
+            Signal that determines what current state should be.
+        """
         if sig == signals.START:
             self.rdb_val['is_currently_running'] = True
         if sig == signals.STOP:
             self.rdb_val['is_currently_running'] = False
     def configure(self, **kwargs):
-        # Should only take in keyword args as a parameter,
-        # that will be passed as JSON to Redis from client end
+        """configure
+        executed when signals.CONFIG is recieved in wait() loop.
+
+        Parameters
+        ----------
+        **kwargs:
+            Passed as JSON-formatted string from Redis, and expanded in wait loop.
+        """
         raise NotImplementedError("class {} must implement configure()".format(type(self).__name__))
     def start(self, **kwargs):
-        # Should only take in keyword args as a parameter,
-        # that will be passed as JSON to Redis from client end
+        """start
+        executed when signals.START is recieved in wait() loop.
+        Inheriting classes should be sure long-polling actions taken in this function execute **asynchronously**, otherwise task state will fail to update.
+
+        Parameters
+        ----------
+        **kwargs:
+            Passed as JSON-formatted string from Redis, and expanded in wait loop.
+        """
         raise NotImplementedError("class {} must implement start()".format(type(self).__name__))
     def stop(self, **kwargs):
-        # Should only take in keyword args as a parameter,
-        # that will be passed as JSON to Redis from client end
+        """stop
+        executed when signals.STOP is recieved in wait() loop.
+
+        Parameters
+        ----------
+        **kwargs:
+            Passed as JSON-formatted string from Redis, and expanded in wait loop.
+        """
         raise NotImplementedError("class {} must implement stop()".format(type(self).__name__))
     def wait(self):
+        """starts loop which checks redis database for status updates and executes commands on reception"""
         while True:
             self.__compare_update_rdb()
             message = self.pubsub.get_message()
@@ -109,7 +150,7 @@ class DAQListener:
                 if command.startswith(signals.STOP):
                     self.__update_run_state(signals.STOP)
                     self.stop(**passed_args)
-            time.sleep(1)
+            time.sleep(.1)
 
 
 class TestListener(DAQListener):

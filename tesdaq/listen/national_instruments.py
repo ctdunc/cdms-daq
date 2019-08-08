@@ -4,25 +4,26 @@ from flask_socketio import SocketIO
 from listen import DAQListener
 
 class PCI6120(DAQListener):
+    """PCI6120
+    Class for control of National Instruments 6120 PCI Device.
+    Extends DAQListener, so init method does the same thing.
+    """
+
     def __init__(
             self,
-            ai_chans,
-            evt_per_trace,
-            trace_per_sec,
-            **kwargs):
+            identifier,
+            device_config,
+            redis_instance):
+        """__init__
+
+        Parameters
+        ----------
+        identifier:
+        device_config:
+        redis_instance:
         """
-        Class for remote management of national instruments 6120 digitizer.
-        -----------
-        evt_per_trace:  number of samples taken *per channel* per trace.
-        trace_per_sec:  number of traces taken per second.
-        ai_chans:       array of channels to take data from (e.g. Dev1/ai0).
-        """
-        super(PCI6120, self).__init__(ai_chans=ai_chans,**kwargs)
-        self.__configure_ni_task(
-            ai_chans=ai_chans,
-            evt_per_trace=evt_per_trace,
-            trace_per_sec=trace_per_sec
-            )
+        super(PCI6120, self).__init__(identifier, device_config, redis_instance)
+    
 
     def __every_n_cb(
             self,
@@ -46,39 +47,42 @@ class PCI6120(DAQListener):
 
     def __configure_savefile(self, **kwargs):
         print("savefile", kwargs)
-        """
-        Configures save location + protocol for data. Yet to be implemented.
-        """
 
         return 0
 
     def __configure_socketio(self, **kwargs):
         print("sio", kwargs)
-        """
-        Configures Socketio
-
-        Keyword Args
-        ----------
-        message_queue:  message queue for socketio instance (e.g. "redis://")
-        channel:        socketio namespace on which to emit events (e.g. "newTrace")
-        """
         self.sio = SocketIO(message_queue=message_queue)
         self.channel = channel
         self.SOCKETIO_CONFIGURED = True
         # TODO: Downsampling should configure here for SIO protocol.
         return 0
     def __configure_ni_task(self, **kwargs):
-        print("ni", kwargs)
-        """
-        Stops current NI task, updates parameters, and restarts.
+        """__configure_ni_task
 
-        Keyword Args
+        Parameters
         ----------
-        evt_per_trace:  number of samples taken *per channel* per trace.
-        trace_per_sec:  number of traces taken per second.
-        ai_chans:       array of channels to take data from (e.g. Dev1/ai0).
+        **kwargs:
+            Each keyword argument corresponds to a channel type, each of which has it's own configuration settings.
+            e.g. 
+            config.ANALOG_IN={
+                channels: {
+                    name: mode,
+                    "Dev1/ai0": "read", 
+                    "Dev1/ai7": "write"
+                    },
+                sample_rate: 100000,
+                sample_mode: "continuous"
+            },
+            config.DIGITAL_IN={
+                channels: {"Dev1/di0"},
+                sample_rate: 10,
+                sample_mode: "some_weird_trigger"
+            }
+                
+        Returns
+        -------
         """
-        # Create NI task if one doesn't exist. Stop it if it does.
         if self.task is None:
             self.task = ni.Task()
         elif not self.task.is_task_done():
@@ -113,16 +117,6 @@ class PCI6120(DAQListener):
         return 0
 
     def configure(self, **kwargs):
-        """
-        Callback for redis CONFIG signal. Configures task according to keyword arguments.
-        
-        Keyword Arguments
-            Each Keyword Argument should contain a dict with the various arguments to be passed to certain callback functions.
-        ----------
-        ni_task:        Contains arguments to be passed to __configure_ni_task()
-        socketio:       Contains arguments to be passed to __configure_socketio()
-        savefile:       Contains arguments to be passed to __configure_savefile()
-        """
         if "ni_task" in kwargs:
             self.__configure_ni_task(**kwargs["ni_task"])
         if "socketio" in kwargs:
