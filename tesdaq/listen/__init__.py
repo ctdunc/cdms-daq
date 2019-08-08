@@ -15,7 +15,6 @@ class DAQListener:
             identifier,
             device_config,
             redis_instance,
-            redis_channels=['default'],
             **kwargs):
         """ Abstraction for listening to redis messages to execute DAQ commands
         Also defines necessary startup procedures to make sure everybody communicating with
@@ -23,21 +22,18 @@ class DAQListener:
 
         Arguments:
         ----------
-        identifier:    specifies redis KEY corresponding to device config.
+        identifier:    specifies redis KEY corresponding to device config, and PUBSUB channel to subscribe to.
         device_config:  required parameter that gets turned into json as allowable things the device may do (see doc/protocol.pdf for an explanation).
-        redis_channels:   Array of strings which redis will subscribe to as channels. (Must be an array!)
         redis_host: Host to which redis connects (e.g. 'localhost')
         redis_port: Port which redis should use to connect (by default is 6379)
         redis_database: Redis DB to be used (default, 0).
         """
         
         self.id = "_tesdaq.dev."+identifier
-        self.redis_channels = redis_channels
         self.rdb_val = {"is_currently_running": False}
         self.r = redis_instance
         self.pubsub = self.r.pubsub()
-        for c in redis_channels:
-            self.pubsub.subscribe(c)
+        self.pubsub.subscribe(identifier)
         # Checks for known config options and sets them if they're contained in device_config.
         for key, parameters in device_config.items():
             self.__set_chan_type_opt(key, **parameters)
@@ -50,6 +46,7 @@ class DAQListener:
         else:
             self.r.set(self.id, str(self.rdb_val))
 
+    """ Name Mangled functions other classes shouldn't call """
     def __set_chan_type_opt(
             self,
             channel_type,
@@ -72,6 +69,15 @@ class DAQListener:
             "sr_is_per_chan": sr_is_per_chan,
             "trigger_opts": trigger_opts
         }
+    def __compare_update_rdb(self):
+        db_val = redis_to_dict(self.r.get(self.id))
+        if db_val != self.rdb_val:
+            self.r.set(self.id, str(self.rdb_val))
+    def __update_run_state(self, sig):
+        if sig == signals.START:
+            self.rdb_val['is_currently_running'] = True
+        if sig == signals.STOP:
+            self.rdb_val['is_currently_running'] = False
     def configure(self, **kwargs):
         # Should only take in keyword args as a parameter,
         # that will be passed as JSON to Redis from client end
@@ -86,6 +92,7 @@ class DAQListener:
         raise NotImplementedError("class {} must implement stop()".format(type(self).__name__))
     def wait(self):
         while True:
+            self.__compare_update_rdb()
             message = self.pubsub.get_message()
             if message:
                 command = message['data']
@@ -96,16 +103,18 @@ class DAQListener:
                 passed_args = redis_to_dict(command)
                 if command.startswith(signals.START):
                     self.start(**passed_args)
+                    self.__update_run_state(signals.START)
                 if command.startswith(signals.CONFIG):
                     self.configure(**passed_args)
                 if command.startswith(signals.STOP):
+                    self.__update_run_state(signals.STOP)
                     self.stop(**passed_args)
             time.sleep(1)
 
 
 class TestListener(DAQListener):
-    def __init__(self,device_name, device_config, redis_instance, **kwargs):
-        super(TestListener, self).__init__(device_name,device_config, redis_instance, **kwargs)
+    def __init__(self, device_name, device_config, redis_instance, **kwargs):
+        super(TestListener, self).__init__(device_name, device_config, redis_instance, **kwargs)
     def configure(self, **kwargs):
         print("RECIEVED MESSAGE CONFIG", kwargs)
         return 0
@@ -115,4 +124,3 @@ class TestListener(DAQListener):
     def stop(self, **kwargs):
         print("RECIEVED MESSAGE STOP", kwargs)
         return 0
-

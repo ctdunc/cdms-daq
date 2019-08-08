@@ -24,14 +24,11 @@ class DAQCommander:
             self.r = redis_instance
         except Exception as e:
             print(e)
-    def configure(self, redis_channels, **kwargs):
-        for c in redis_channels:
+    def configure(self, c, **kwargs):
             self.r.publish(c,signals.CONFIG + ' ' + str(kwargs))
-    def start(self, redis_channels, **kwargs):
-        for c in redis_channels:
+    def start(self, c, **kwargs):
             self.r.publish(c,signals.START + ' ' + str(kwargs))
-    def stop(self, redis_channels, **kwargs):
-        for c in redis_channels:
+    def stop(self, c, **kwargs):
             self.r.publish(c,signals.STOP + ' ' + str(kwargs))
     def get_active_devices(self):
         devices = [key.decode("utf-8") for key in self.r.keys() if key.decode("utf-8").startswith(config.DEV_KEY_PREFIX)]

@@ -2,3 +2,5 @@ env/
 test.py
 node_modules/
 test_control.py
+*.pyc
+cbf.sh
