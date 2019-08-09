@@ -8,25 +8,9 @@ If these values are indeed configured, they will be passed to the server as dict
 If not, they shouldn't render options on the frontend.
 """
 DEV_KEY_PREFIX = "_tesdaq.dev."
-# Allowable Channels
-ANALOG_IN = "cfg_ai_chans"
-ANALOG_OUT = "cfg_ao_chans"
+DEV_RESTRICT_POSTFIX = ".restrict"
+DEV_STATE_POSTFIX = ".state"
 
-DIGITAL_IN = "cfg_di_chans"
-DIGITAL_OUT = "cfg_do_chans"
-
-
-# Acquisition parameters configurable from front end
-# Tells server whether functions are defined for the device in question.
-CHAN_CFG = [
-    "cfg_analog_input",
-    "cfg_digital_input",
-    "cfg_analog_output",
-    "cfg_digital_output"
-]
-
-
-# Units
 VOLT = "VOLT"
 CURRENT = "AMP"
 RESISTANCE = "OHM"
