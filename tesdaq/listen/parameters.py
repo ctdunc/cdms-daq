@@ -1,7 +1,8 @@
+name = 'parameters'
 import ast
 import re
 from collections import namedtuple
-"""DeviceRestriction
+"""TaskTypeRestriction
 Tuple subclass that stores immutable, device specific information about constraints on task types.
 e.g., if a DAQ can run one analog voltage task at a time, num_tasks=1.
 
@@ -19,8 +20,8 @@ min_sample_rate:
 
 sr_is_per_chan:
 """
-DeviceRestriction = namedtuple(
-        'DeviceRestriction', 
+TaskTypeRestriction = namedtuple(
+        'TaskTypeRestriction', 
         ['num_tasks',
         'valid_channels',
         'valid_timing',
@@ -79,8 +80,9 @@ class TaskState:
         except ValueError:
             self.timing_mode = self.__restrict['valid_timing'][0]
 
-        self.__is_active = False
+        self.is_active = False
     def __str__(self):
+        print(self.__dict__)
         return str(self.__dict__)
     @property
     def current_state(self):
@@ -91,10 +93,6 @@ class TaskState:
                 'is_active': self.is_active
                 }
         return state_dict
-    @property
-    def is_active(self):
-        return self.__is_active
-
     @property
     def restrict(self):
         return self.__restrict
@@ -120,7 +118,7 @@ class TaskState:
         """
         adds new channels from input array. 
         Avoids duplication and checks validity against constraint.
-        If you need to clear channel array, call `del taskState.channels` first.
+        If you need to clear channel array, call `del TaskState.channels` first.
 
         Parameters
         ----------
@@ -157,7 +155,6 @@ class TaskState:
             self.__timing_mode = timing_mode
         else:
             raise ValueError("Timing mode \"{}\" is not allowed by current restriction".format(timing_mode))
-
 def redis_to_dict(redis_string):
     """redis_to_dict
     Translates (byte)string from redis database to dict object.
@@ -177,7 +174,7 @@ def redis_to_dict(redis_string):
     except AttributeError:
         pass
 
-    dict_string = re.search('({.+})', st)
+    dict_string = re.search('({.+})', redis_string)
     if dict_string:
         redis_dict = ast.literal_eval(dict_string.group(0))
         return redis_dict
