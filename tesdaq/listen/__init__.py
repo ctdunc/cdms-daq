@@ -1,7 +1,7 @@
 name = "listen"
 import time
 from redis.exceptions import ConnectionError
-from tesdaq.constants import states, signals, config
+from tesdaq.constants import Signals, Config
 from tesdaq.listen.parameters import TaskState, redis_to_dict
 
 class DeviceListener:
@@ -24,9 +24,9 @@ class DeviceListener:
         -------
         """
 
-        self.id = config.DEV_KEY_PREFIX+identifier
-        self.state_key = self.id+config.DEV_STATE_POSTFIX
-        self.restrict_key = self.id+config.DEV_RESTRICT_POSTFIX
+        self.id = Config.DEV_KEY_PREFIX.value+identifier
+        self.state_key = self.id+Config.DEV_STATE_POSTFIX.value
+        self.restrict_key = self.id+Config.DEV_RESTRICT_POSTFIX.value
 
         self.r = redis_instance
 
@@ -49,7 +49,6 @@ class DeviceListener:
             self.__restrictions[task_type] = restriction
         self.r.set(self.state_key, str(self.state))
         self.r.set(self.restrict_key, str(self.restrictions))
-
     @property
     def state(self):
         rdict = {}
@@ -74,9 +73,9 @@ class DeviceListener:
         Returns
         -------
         """
-        if signal == signals.START:
+        if signal == Signals.START:
             self.__state[task_type].is_active = True
-        if signal == signals.STOP:
+        if signal == Signals.STOP:
             self.__state[task_type].is_active = True
         self.r.set(self.state_key, self.state)
     def __config_active_state(self, to_configure):
@@ -107,7 +106,7 @@ class DeviceListener:
             self.r.set(self.state_key, str(self.state))
     def configure(self, **kwargs):
         """configure
-        executed when signals.CONFIG is recieved in wait() loop.
+        executed when Signals.CONFIG is recieved in wait() loop.
 
         Parameters
         ----------
@@ -117,7 +116,7 @@ class DeviceListener:
         raise NotImplementedError("class {} must implement configure()".format(type(self).__name__))
     def start(self, **kwargs):
         """start
-        executed when signals.START is recieved in wait() loop.
+        executed when Signals.START is recieved in wait() loop.
         Inheriting classes should be sure long-polling actions taken in this function execute **asynchronously**, otherwise task state will fail to update.
 
         Parameters
@@ -128,7 +127,7 @@ class DeviceListener:
         raise NotImplementedError("class {} must implement start()".format(type(self).__name__))
     def stop(self, **kwargs):
         """stop
-        executed when signals.STOP is recieved in wait() loop.
+        executed when Signals.STOP is recieved in wait() loop.
 
         Parameters
         ----------
@@ -147,14 +146,14 @@ class DeviceListener:
                 except AttributeError:
                     command = str(command)
                 passed_args = redis_to_dict(command)
-                if command.startswith(signals.START):
+                if command.startswith(Signals.START.value):
                     self.start(**passed_args)
-                    self.__update_run_state(signals.START)
-                if command.startswith(signals.CONFIG):
+                    self.__update_run_state(Signals.START.value)
+                if command.startswith(Signals.CONFIG.value):
                     self.configure(**passed_args)
                     self.__config_active_state(passed_args)
-                if command.startswith(signals.STOP):
-                    self.__update_run_state(signals.STOP)
+                if command.startswith(Signals.STOP.value):
+                    self.__update_run_state(Signals.STOP.value)
             time.sleep(.1)
 
 

@@ -9,7 +9,9 @@ a_rest = TaskTypeRestriction(
         valid_timing=["triggered", "continuous"],
         max_sample_rate=100000,
         min_sample_rate=10,
-        sr_is_per_chan=False
+        sr_is_per_chan=False,
+        volt_ranges=[(-1,1),(-10,10)],
+        valid_trigger=['analog_rising_edge']
         )
 
 d_rest = TaskTypeRestriction(
@@ -18,7 +20,9 @@ d_rest = TaskTypeRestriction(
         valid_timing=["triggered", "continuous"],
         max_sample_rate=1000,
         min_sample_rate=10,
-        sr_is_per_chan=True
+        sr_is_per_chan=True,
+        volt_ranges=[(-1,1),(-10,10)],
+        valid_trigger=['analog_rising_edge']
         )
 
 testlistener = DAQmxListener("test", r, ai_in=a_rest, di_in=d_rest)

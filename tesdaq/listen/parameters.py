@@ -87,7 +87,8 @@ class TaskState:
         try:
             self.timing_mode = timing_mode
         except ValueError:
-            self.timing_mode = self.__restrict['valid_timing'][0]
+            print(self.__restrict)
+            self.timing_mode = self.__restrict[2][0]
 
         self.is_active = False
     def __str__(self):
