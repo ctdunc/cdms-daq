@@ -9,25 +9,34 @@ e.g., if a DAQ can run one analog voltage task at a time, num_tasks=1.
 Parameters
 ----------
 num_tasks: int
-    
+    Number of tasks of same type that can be run simultaneously (currently always set to 1 for NI task).
 valid_channels: list of str
-
-valid_timing: dict
-
-max_sample_rate:
-
-min_sample_rate:
-
-sr_is_per_chan:
+    List containing valid channel paths for task type.
+valid_timing: list of str
+    List containing valid timing configurations for task type.
+valid_trig_usage: list of str
+    List containing valid trigger usages for current task type.
+max_sample_rate: int
+    Maximum sample rate for task type.
+min_sample_rate: int
+    Minimum sample rate for task type.
+volt_ranges: list of tuple of float
+    list of pairs of integers denoting (min, max) of given voltage range.
+sr_is_per_chan: bool
+    Whether sample rate scales as 1/channel. Default=False.
 """
 TaskTypeRestriction = namedtuple(
-        'TaskTypeRestriction', 
-        ['num_tasks',
-        'valid_channels',
-        'valid_timing',
-        'max_sample_rate',
-        'min_sample_rate',
-        'sr_is_per_chan']
+        'TaskTypeRestriction',
+        [
+            'num_tasks',
+            'valid_channels',
+            'valid_timing',
+            'valid_trigger',
+            'max_sample_rate',
+            'min_sample_rate',
+            'volt_ranges',
+            'sr_is_per_chan'
+        ]
 )
 
 class TaskState:
@@ -36,13 +45,13 @@ class TaskState:
 
     Parameters
     ----------
-    restriction: DeviceRestriction
+    restriction: tesdaq.parameters.TaskTypeRestriction
     channels: list of str
-        Default list of channels to add to task. Can be empty. 
+        Default list of channels to add to task. Can be empty, cannot be none.
     sample_rate: int
-        Default rate to sample/generate samples.
+        Default rate to sample/generate samples. Defaults to 100S/s.
     timing_mode: str
-        Default timing mode.
+        Default timing mode. 
 
     Attributes
     ----------
@@ -70,7 +79,7 @@ class TaskState:
             restriction,
             channels=[],
             sample_rate=100,
-            timing_mode='continuous'
+            timing_mode=''
             ):
         self.__restrict = restriction
         self.channels = channels
