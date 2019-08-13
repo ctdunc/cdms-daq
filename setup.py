@@ -5,14 +5,14 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="tesdaq",
-    version="0.0.7",
+    version="0.0.8",
     author="Connor Duncan",
     author_email="ctdunc@berkeley.edu",
     description="DAQ Control using Redis as a message broker.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/ucbpylegroup/tesdaq",
-    packages=['tesdaq', 'tesdaq.listen', 'tesdaq.command', 'tesdaq.daq_constants', 'tesdaq.translate'],
+    packages=['tesdaq', 'tesdaq.listen', 'tesdaq.command'],
     zip_safe=False,
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
