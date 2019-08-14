@@ -7,4 +7,5 @@ devs = cmd.get_active_devices()
 print(devs[0])
 d = devs[0]
 rest = cmd.get_device_restriction(d)
-print(rest)
+state = cmd.get_device_state(d)
+

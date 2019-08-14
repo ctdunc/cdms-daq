@@ -66,7 +66,10 @@ class DAQCommander:
         devices = [dev.replace(Config.DEV_STATE_POSTFIX.value,'') for dev in devices if dev.endswith(Config.DEV_STATE_POSTFIX.value)]
         return devices
     def get_device_state(self, device):
+        key = Config.DEV_KEY_PREFIX.value+device+Config.DEV_STATE_POSTFIX.value
+        print(key)
         state = self.r.get(Config.DEV_KEY_PREFIX.value+device+Config.DEV_STATE_POSTFIX.value)
+        print(state)
         state = redis_to_dict(state)
         return state
     def get_device_restriction(self, device):

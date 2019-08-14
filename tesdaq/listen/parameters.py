@@ -14,7 +14,7 @@ valid_channels: list of str
     List containing valid channel paths for task type.
 valid_timing: list of str
     List containing valid timing configurations for task type.
-valid_trig_usage: list of str
+valid_trigger: list of str
     List containing valid trigger usages for current task type.
 max_sample_rate: int
     Maximum sample rate for task type.

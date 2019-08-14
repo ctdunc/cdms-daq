@@ -150,8 +150,16 @@ class DeviceListener:
                     self.start(**passed_args)
                     self.__update_run_state(Signals.START.value)
                 if command.startswith(Signals.CONFIG.value):
-                    self.configure(**passed_args)
-                    self.__config_active_state(passed_args)
+                    previous_state = self.__state
+                    should_configure = False
+                    try:
+                        self.__config_active_state(passed_args)
+                        should_configure = True
+                    except ValueError as e:
+                        self.__state = previous_state
+                        raise e
+                    if should_configure:
+                        self.configure()
                 if command.startswith(Signals.STOP.value):
                     self.__update_run_state(Signals.STOP.value)
             time.sleep(.1)
