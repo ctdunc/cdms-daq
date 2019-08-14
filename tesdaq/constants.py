@@ -12,3 +12,4 @@ class Signals(Enum):
     START = "tesdaq.START"
     STOP = "tesdaq.STOP"
     CONFIG = "tesdaq.CONFIG"
+

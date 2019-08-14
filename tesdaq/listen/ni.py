@@ -2,13 +2,6 @@ import nidaqmx
 from tesdaq.listen import DeviceListener
 from tesdaq.listen.parameters import TaskTypeRestriction
 
-# Task types for use in later getattr() calls to nidaqmx device.
-task_types = [
-        "ai", # Analog Input
-        "ao", # Analog Output
-        "di", # Digital Input
-        ]
-
 def __map_enum_to_dict(enum_list):
     """__map_enum_to_dict
         Maps enum types to dict of {"name": enum} pairs, for use in frontend programming/TaskTypeRestriction generation.
@@ -90,7 +83,8 @@ def di_task_restrict(device):
         TaskTypeRestriction containing constraints on task
     """
     chans = device.di_lines.channel_names
-    trig_usage = __map_enum_to_dict(device.di_trig_usage)
+    # Expand dict keys as list. This is so ast can parse() from RDB.
+    trig_usage = [*__map_enum_to_dict(device.di_trig_usage)]
     max_rate = device.di_max_rate
     min_rate = 0
 
@@ -121,8 +115,10 @@ def ai_task_restrict(device):
         TaskTypeRestriction containing constraints on task
     """
     chans = device.ai_physical_chans.channel_names
-    samp_modes = __map_enum_to_dict(device.ai_samp_modes)
-    trig_usage = __map_enum_to_dict(device.ai_trig_usage)
+    # Expand dict keys as list. This is so ast can parse() from RDB.
+    # [*dict] -> [key1, key2, key3...]
+    samp_modes = [*__map_enum_to_dict(device.ai_samp_modes)]
+    trig_usage = [*__map_enum_to_dict(device.ai_trig_usage)]
     if device.ai_simultaneous_sampling_supported:
         max_sample = device.ai_max_multi_chan_rate
     else:
