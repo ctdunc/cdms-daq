@@ -25,5 +25,5 @@ d_rest = TaskTypeRestriction(
         valid_trigger=['analog_rising_edge']
         )
 
-testlistener = DAQmxListener("test", r, ai_in=a_rest, di_in=d_rest)
+testlistener = DAQmxListener("test", r, "Dev1", analog_input=a_rest, digital_input=d_rest)
 testlistener.wait()

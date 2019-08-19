@@ -1,4 +1,4 @@
-from tesdaq.constants import states, signals, config
+from tesdaq.constants import Signals, Config
 from tesdaq.listen.parameters import redis_to_dict
 import redis
 import time
@@ -55,16 +55,24 @@ class DAQCommander:
             Determines whether previously set values will be reset to zero before instantiation, or if values will be added.
         """
         task_dict['unset_previous']=unset_previous
-        self.r.publish(device,signals.CONFIG + ' ' + str(task_dict))
+        self.r.publish(device,Signals.CONFIG.value + ' ' + str(task_dict))
     def start(self, c, **kwargs):
-            self.r.publish(c,signals.START + ' ' + str(kwargs))
+            self.r.publish(c,Signals.START.value + ' ' + str(kwargs))
     def stop(self, c, **kwargs):
-            self.r.publish(c,signals.STOP + ' ' + str(kwargs))
+            self.r.publish(c,Signals.STOP.value + ' ' + str(kwargs))
     def get_active_devices(self):
-        devices = [key.decode("utf-8") for key in self.r.keys() if key.decode("utf-8").startswith(config.DEV_KEY_PREFIX)]
-        devices = [dev.replace(config.DEV_KEY_PREFIX,'') for dev in devices]
+        devices = [key.decode("utf-8") for key in self.r.keys() if key.decode("utf-8").startswith(Config.DEV_KEY_PREFIX.value)]
+        devices = [dev.replace(Config.DEV_KEY_PREFIX.value,'') for dev in devices]
+        devices = [dev.replace(Config.DEV_STATE_POSTFIX.value,'') for dev in devices if dev.endswith(Config.DEV_STATE_POSTFIX.value)]
         return devices
-    def get_device_config(self, device):
-        cfg = redis_to_dict(self.r.get(config.DEV_KEY_PREFIX+device+config.DEV_STATE_POSTFIX))
-        return cfg
-
+    def get_device_state(self, device):
+        key = Config.DEV_KEY_PREFIX.value+device+Config.DEV_STATE_POSTFIX.value
+        print(key)
+        state = self.r.get(Config.DEV_KEY_PREFIX.value+device+Config.DEV_STATE_POSTFIX.value)
+        print(state)
+        state = redis_to_dict(state)
+        return state
+    def get_device_restriction(self, device):
+        restrict = self.r.get(Config.DEV_KEY_PREFIX.value+device+Config.DEV_RESTRICT_POSTFIX.value)
+        restrict = redis_to_dict(restrict)
+        return restrict

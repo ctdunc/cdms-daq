@@ -2,13 +2,6 @@ import nidaqmx
 from tesdaq.listen import DeviceListener
 from tesdaq.listen.parameters import TaskTypeRestriction
 
-# Task types for use in later getattr() calls to nidaqmx device.
-task_types = [
-        "ai", # Analog Input
-        "ao", # Analog Output
-        "di", # Digital Input
-        ]
-
 def __map_enum_to_dict(enum_list):
     """__map_enum_to_dict
         Maps enum types to dict of {"name": enum} pairs, for use in frontend programming/TaskTypeRestriction generation.
@@ -90,7 +83,8 @@ def di_task_restrict(device):
         TaskTypeRestriction containing constraints on task
     """
     chans = device.di_lines.channel_names
-    trig_usage = __map_enum_to_dict(device.di_trig_usage)
+    # Expand dict keys as list. This is so ast can parse() from RDB.
+    trig_usage = [*__map_enum_to_dict(device.di_trig_usage)]
     max_rate = device.di_max_rate
     min_rate = 0
 
@@ -121,8 +115,10 @@ def ai_task_restrict(device):
         TaskTypeRestriction containing constraints on task
     """
     chans = device.ai_physical_chans.channel_names
-    samp_modes = __map_enum_to_dict(device.ai_samp_modes)
-    trig_usage = __map_enum_to_dict(device.ai_trig_usage)
+    # Expand dict keys as list. This is so ast can parse() from RDB.
+    # [*dict] -> [key1, key2, key3...]
+    samp_modes = [*__map_enum_to_dict(device.ai_samp_modes)]
+    trig_usage = [*__map_enum_to_dict(device.ai_trig_usage)]
     if device.ai_simultaneous_sampling_supported:
         max_sample = device.ai_max_multi_chan_rate
     else:
@@ -144,6 +140,16 @@ def ai_task_restrict(device):
     return task_restrict 
     
 class DAQmxListener(DeviceListener):
+    """DAQmxListener
+    Abstract listener for devices using the NI-DAQmx driver.
+    
+    
+    Attributes
+    ----------
+    Each attribute has a unique corresponding keyword that lets it be set from the redis database. 
+    That keyword should **always** be exactly the name of the attribute (i.e., when CONFIG {'something': 10} is sent to the device's pubsub channel, on the next run of the wait loop, self.something = 10).
+    """
+    
     def __init__(self,
             identifier,
             redis_instance,
@@ -210,6 +216,60 @@ class DAQmxListener(DeviceListener):
         return 0
     def configure(self, **kwargs):
         print(self.state) 
+=======
+        super(DAQmxListener, self).__init__(identifier, redis_instance, **device_restrictions)
+        self.digital_input_task = nidaqmx.Task(identifier+"_di_task")
+        self.analog_input_task = nidaqmx.Task(identifier+"_ai_task")
+    def configure_analog_input_task(self, **kwargs):
+        channels = kwargs['channels']
+        sample_rate = kwargs['sample_rate']
+        timing_mode = kwargs['timing_mode']
+        for channel in channels:
+            try:
+                self.analog_input_task.ai_channels.add_ai_voltage_chan(channel)
+            except nidaqmx.errors.DaqError as e:
+                raise e
+        try:
+            timing_mode = nidaqmx.constants.AcquisitionType(timing_mode)
+        except KeyError:
+            raise ValueError("Timing mode \"{}\" is not a valid input for nidaqmx.constants.AcquisitionMode. This is likely an error with a manual task configuration. Please consult the ni documentation for further information".format(timing_mode))
+        
+        self.analog_input_task.timing.cfg_samp_clk_timing(
+                sample_rate,
+                sample_mode=timing_mode,
+                samps_per_chan=int(sample_rate/10)) # TODO: more control over events per trace.
+        self.analog_input_task.register_every_n_samples_acquired_into_buffer_event(int(sample_rate/10), self.__analog_input_callback)
+    def analog_input_callback(
+            self,
+            task_handle, 
+            every_n_samples_event_type,
+            number_of_samples,
+            callback_data):
+        # TODO: fix
+        return 0
+
+            
+        return 0 
+    def configure_digitial_input_task(self, **kwargs):
+        # TODO: config.
+        return 0
+    def configure(self):
+        """configure
+        Function that configures national instruments device from NI-DAQmx functions.
+        Purposefully takes no arguments to ensure that NI config and redis state are always in sync.
+
+        Returns
+        -------
+        Status
+        """
+        for key, value in self.state.items():
+            if key == "analog_input":
+                self.configure_analog_input_task(**value)
+            if key == "digital_input":
+                self.configure_digital_input_task(**value)
+            # if key == "analog_output: TODO: Configure this
+            # if key == "digital_output: TODO: configure
+>>>>>>> 9c8531776776857796f951c8bf6dbc763339c54e
     def start(self):
         print("do nothing yet")
     def stop(self):
