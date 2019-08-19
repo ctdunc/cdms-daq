@@ -87,13 +87,20 @@ class TaskState:
         try:
             self.timing_mode = timing_mode
         except ValueError:
-            print(self.__restrict)
             self.timing_mode = self.__restrict[2][0]
 
         self.is_active = False
+
     def __str__(self):
-        print(self.__dict__)
-        return str(self.__dict__)
+        rep = str({'restriction': dict(self.restrict._asdict()), 'state': self.current_state})
+        return rep
+
+    def __repr__(self):
+        rep = str({'restriction': dict(self.restrict._asdict()), 'state': self.current_state})
+        return rep
+    def json_repr(self):
+        rep = str({'restriction': dict(self.restrict._asdict()), 'state': self.current_state})
+        return rep
     @property
     def current_state(self):
         state_dict = {
@@ -103,6 +110,7 @@ class TaskState:
                 'is_active': self.is_active
                 }
         return state_dict
+
     @property
     def restrict(self):
         return self.__restrict
@@ -159,32 +167,13 @@ class TaskState:
             self.__sample_rate = sample_rate
         else:
             raise ValueError("Sample rate is outside valid range")
+
     @timing_mode.setter
     def timing_mode(self, timing_mode):
         if timing_mode in getattr(self.restrict, 'valid_timing'):
             self.__timing_mode = timing_mode
         else:
             raise ValueError("Timing mode \"{}\" is not allowed by current restriction".format(timing_mode))
-def redis_to_dict(redis_string):
-    """redis_to_dict
-    Translates (byte)string from redis database to dict object.
 
-    Parameters
-    ----------
-    redis_string: str
-        String recieved from redis database.
-
-    Returns
-    -------
-    redis_dict: dict
-        Dict of values from redis db. Typically corresponds to device state or restriction.
-    """
-    try:
-        redis_string = redis_string.decode("utf-8")
-    except AttributeError:
-        pass
-
-    dict_string = re.search('({.+})', redis_string)
-    if dict_string:
-        redis_dict = ast.literal_eval(dict_string.group(0))
-        return redis_dict
+def redis_to_dict(st):
+    return st

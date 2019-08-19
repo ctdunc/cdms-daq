@@ -216,8 +216,6 @@ class DAQmxListener(DeviceListener):
         return 0
     def configure(self, **kwargs):
         print(self.state) 
-=======
-        super(DAQmxListener, self).__init__(identifier, redis_instance, **device_restrictions)
         self.digital_input_task = nidaqmx.Task(identifier+"_di_task")
         self.analog_input_task = nidaqmx.Task(identifier+"_ai_task")
     def configure_analog_input_task(self, **kwargs):
@@ -269,7 +267,6 @@ class DAQmxListener(DeviceListener):
                 self.configure_digital_input_task(**value)
             # if key == "analog_output: TODO: Configure this
             # if key == "digital_output: TODO: configure
->>>>>>> 9c8531776776857796f951c8bf6dbc763339c54e
     def start(self):
         print("do nothing yet")
     def stop(self):

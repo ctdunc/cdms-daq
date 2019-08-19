@@ -1,6 +1,7 @@
 name = "listen"
 import time
 from redis.exceptions import ConnectionError
+from rejson import Path
 from tesdaq.constants import Signals, Config
 from tesdaq.listen.parameters import TaskState, redis_to_dict
 
@@ -25,85 +26,54 @@ class DeviceListener:
         """
 
         self.id = Config.DEV_KEY_PREFIX.value+identifier
-        self.state_key = self.id+Config.DEV_STATE_POSTFIX.value
-        self.restrict_key = self.id+Config.DEV_RESTRICT_POSTFIX.value
 
         self.r = redis_instance
 
         # Check if key is reserved
-        state_val = self.r.get(self.state_key)
-        restrict_val = self.r.get(self.restrict_key)
+        rdb_val = self.r.jsonget(self.id) 
 
-        if state_val:
+        if rdb_val:
             raise ValueError("A listener with id \"{}\" already exists. Please use a different id, or stop that worker, and unset the redis keys.".format(self.id))
-        elif restrict_val:
-            print("A restriction for listener \"{}\" exists, but no state has been set. Restriction will be reset.".format(self.id))
 
         self.pubsub = self.r.pubsub()
         self.pubsub.subscribe(identifier)
-         
-        self.__state = {}
-        self.__restrictions = {}
+
+        self.__device = {}
         for task_type, restriction in kwargs.items():
-            self.__state[task_type] = TaskState(restriction)
-            self.__restrictions[task_type] = restriction
-        self.r.set(self.state_key, str(self.state))
-        self.r.set(self.restrict_key, str(self.restrictions))
-    @property
-    def state(self):
-        rdict = {}
-        for key, val in self.__state.items():
-            rdict[key] = val.current_state
-        return rdict
-    @property
-    def restrictions(self):
-        rdict = {}
-        for key, val in self.__restrictions.items():
-            rdict[key] = dict(val._asdict())
-        return rdict
-    def __update_active_state(self, task_type, signal):
-        """update_active_state
+            self.__device[task_type] = TaskState(restriction)
+        self.r.jsonset(self.id, Path.rootPath(), self.__device.json_repr())
+
+    def diff_update_rdb(self, tasks_to_configure):
+        """diff_update_rdb
 
         Parameters
         ----------
-        task_type: str
-            Type of task whose state is to be updated.
-        signal:
-            Signal which was recieved.
+        tasks_to_configure: dict with following structure:
+            {"task_type": {
+                "parameter_to_change_1": [new, value],
+                "other_parameter":      "new_value"
+                }
+            }
         Returns
         -------
         """
-        if signal == Signals.START:
-            self.__state[task_type].is_active = True
-        if signal == Signals.STOP:
-            self.__state[task_type].is_active = True
-        self.r.set(self.state_key, self.state)
-    def __config_active_state(self, to_configure):
-        """__config_active_state
-
-        Parameters
-        ----------
-        to_configure: dict
-            Type of class, with parameters to be reset. Whether specific assets should be reset.
-
-        Returns
-        -------
-        """
-        should_delete = to_configure['unset_previous']
-        del to_configure['unset_previous']
-        for task_type, to_update in to_configure.items():
-            # Check for valid task type
-            if self.__state[task_type]:
+        should_reset = tasks_to_configure['unset_previous']
+        del tasks_to_configure['unset_previous']
+        for task_type, to_update in tasks_to_configure.items():
+            if self.__device[task_type]:
                 for key, value in to_update.items():
-                    if should_delete:
-                        delattr(self.__state[task_type], key)
-                    setattr(self.__state[task_type], key, value)
+                    if should_reset:
+                        delattr(self.__device[task_type]['state'], key)
+                    setattr(self.__device[task_type]['state'], key, value)
             else:
-                raise ValueError("Invalid Task Type \"{}\"".format(task_type))
-    def __update_rdb(self):
-        redis_state = redis_to_dict(self.r.get(self.state_key))
-        if redis_state != self.state:
-            self.r.set(self.state_key, str(self.state))
+                raise ValueError("Invalid Task Name \"{}\"".format(task_type))
+        
+
+
+    def get_rdb(self):
+        status = 0
+
+        return status
     def configure(self, **kwargs):
         """configure
         executed when Signals.CONFIG is recieved in wait() loop.
@@ -137,7 +107,7 @@ class DeviceListener:
         raise NotImplementedError("class {} must implement stop()".format(type(self).__name__))
     def wait(self):
         while True:
-            self.__update_rdb()
+            ## UPDATE
             message = self.pubsub.get_message()
             if message:
                 command=message['data']
@@ -148,7 +118,7 @@ class DeviceListener:
                 passed_args = redis_to_dict(command)
                 if command.startswith(Signals.START.value):
                     self.start(**passed_args)
-                    self.__update_run_state(Signals.START.value)
+                    # UPDATE
                 if command.startswith(Signals.CONFIG.value):
                     previous_state = self.__state
                     should_configure = False
@@ -161,7 +131,8 @@ class DeviceListener:
                     if should_configure:
                         self.configure()
                 if command.startswith(Signals.STOP.value):
-                    self.__update_run_state(Signals.STOP.value)
+                    print(stop)
+                    #UPDATE
             time.sleep(.1)
 
 

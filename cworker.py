@@ -1,29 +1,17 @@
-from tesdaq.listen.ni import DAQmxListener
-from tesdaq.listen.parameters import TaskTypeRestriction, TaskState
-import redis
-r = redis.Redis()
+from tesdaq.listen import DeviceListener
+from tesdaq.listen.parameters import TaskTypeRestriction
 
-a_rest = TaskTypeRestriction(
-        num_tasks=2,
-        valid_channels=["Dev1/ai0","Dev1/ai1","Dev1/ai2"],
-        valid_timing=["triggered", "continuous"],
-        max_sample_rate=100000,
+import rejson
+r = rejson.Client()
+
+analog_in = TaskTypeRestriction(
+        num_tasks=1,
+        valid_channels=["Dev1","Chan2"],
+        valid_timing=["timing"],
+        valid_trigger=["Trigger"],
         min_sample_rate=10,
-        sr_is_per_chan=False,
-        volt_ranges=[(-1,1),(-10,10)],
-        valid_trigger=['analog_rising_edge']
-        )
-
-d_rest = TaskTypeRestriction(
-        num_tasks=2,
-        valid_channels=["Dev1/di0","Dev1/di1","Dev1/di2"],
-        valid_timing=["triggered", "continuous"],
-        max_sample_rate=1000,
-        min_sample_rate=10,
-        sr_is_per_chan=True,
-        volt_ranges=[(-1,1),(-10,10)],
-        valid_trigger=['analog_rising_edge']
-        )
-
-testlistener = DAQmxListener("test", r, "Dev1", analog_input=a_rest, digital_input=d_rest)
+        max_sample_rate=10000,
+        volt_ranges=[(-5,5)],
+        sr_is_per_chan=True)
+testlistener = DeviceListener("test", r, analog_in=analog_in)
 testlistener.wait()
