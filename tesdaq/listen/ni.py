@@ -134,7 +134,7 @@ def ai_task_restrict(device):
             num_tasks=1, #TODO: Add support for more tasks
             valid_channels=chans,
             valid_timing=samp_modes,
-            valid_trig_usage=trig_usage,
+            valid_trigger=trig_usage,
             max_sample_rate=max_sample,
             min_sample_rate=min_sample,
             volt_ranges=volt_ranges,
@@ -173,12 +173,41 @@ class DAQmxListener(DeviceListener):
         # TODO: Write example of passing dict of nidaqmx enum with kwarg
         if not kwargs:
             # If restriction passed as none, generate restriction
-            device_restrictions = task_restrict_for_device(devicename)
+            device_restrictions = task_restrict_for_device(device_name)
         else:
             # Restriction = explicitly passed TaskTypeRestriction
             device_restrictions = kwargs 
         super(DAQmxListener, self).__init__(identifier, redis_instance, **kwargs)
         print(device_restrictions, self.restrictions)
+        self.ai_task = nidaqmx.Task()
+        self.di_task = nidaqmx.Task()
+    def ai_encb(self, task_handle, every_n_samples_event_type, number_of_samples, callback_data):
+
+        raise NotImplementedError("Classes inheriting DAQmxListener must implement ai_encb() in order to use analog input tasks!")
+    def di_encb(self, task_handle, every_n_samples_event_type, number_of_samples, callback_data):
+
+        raise NotImplementedError("Classes inheriting DAQmxListener must implement di_encb() in order to use digital input tasks!")
+    def configure_ai_task(self, channels, timing_mode, sample_rate): # TODO: add more args here, decide what "command" function should do.
+        # Always recreate task (since diffing is handled by DeviceListener __configure method).
+        if not self.ai_task.is_done():
+            self.ai_task.close()
+        self.ai_task = nidaqmx.Task()
+        
+        for channel in channels:
+            # TODO: handle error if channel not valid
+            self.ai_task.ai_channels.add_ai_voltage_chan(channel)
+        
+        # TODO: how to determine number of events/bin? Is this something we'd rather set on frontend, + have calculated frequency?
+        # the numbers below are **super arbitrary**
+        evt_per_trace = int(sample_rate/10) #TODO: STRICT floor function. This will offset if you put in a weird sample rate.
+        trace_per_sec = 10
+
+        self.ai_task.cfg_samp_clk_timing(sample_rate, sample_mode=timing_mode, samps_per_chan=evt_per_trace)
+        self.ai_task.register_every_n_samples_acquired_into_buffer_event(evt_per_trace, self.ai_encb)
+        return 0
+    def configure_di_task(self): # TODO: add more args here, decide what "command" function should do.
+
+        return 0
     def configure(self, **kwargs):
         print(self.state) 
     def start(self):
