@@ -1,9 +1,11 @@
 name = "listen"
 import time
+import re
+import ast
 from redis.exceptions import ConnectionError
 from rejson import Path
 from tesdaq.constants import Signals, Config
-from tesdaq.listen.parameters import TaskState, redis_to_dict
+from tesdaq.listen.parameters import TaskState
 
 class DeviceListener:
     def __init__(
@@ -38,13 +40,24 @@ class DeviceListener:
         self.pubsub = self.r.pubsub()
         self.pubsub.subscribe(identifier)
 
-        self.__device = {}
+        self.__state = {}
         for task_type, restriction in kwargs.items():
-            self.__device[task_type] = TaskState(restriction)
-        self.r.jsonset(self.id, Path.rootPath(), self.__device.json_repr())
+            self.__state[task_type] = TaskState(restriction)
+        self.r.jsonset(self.id, Path.rootPath(), self.state)
 
-    def diff_update_rdb(self, tasks_to_configure):
-        """diff_update_rdb
+    @property
+    def state(self):
+        """state
+        Returns
+        -------
+        Representation of state as JSON serializable object. 
+        There's basically no other reason to access it as the TaskState object outside of this class.
+        """
+        return dict(map(lambda entry: (entry[0], entry[1].json_repr()), self.__state.items()))
+
+    def update_state(self, tasks_to_configure):
+        """update_state
+        Updates local state.
 
         Parameters
         ----------
@@ -56,24 +69,27 @@ class DeviceListener:
             }
         Returns
         -------
+        status: bool
+            Returns true if changes have been made.
         """
+        status = False
         should_reset = tasks_to_configure['unset_previous']
         del tasks_to_configure['unset_previous']
         for task_type, to_update in tasks_to_configure.items():
-            if self.__device[task_type]:
+            # Check for existing task_type. If not, raise an error.
+            if self.__state[task_type]:
                 for key, value in to_update.items():
                     if should_reset:
-                        delattr(self.__device[task_type]['state'], key)
-                    setattr(self.__device[task_type]['state'], key, value)
+                        delattr(self.__state[task_type]['state'], key)
+                    setattr(self.__state[task_type]['state'], key, value)
             else:
                 raise ValueError("Invalid Task Name \"{}\"".format(task_type))
-        
+    
+    def update_rdb(self):
+        """update_rdb
+        Updates redis database with new state.
+        """
 
-
-    def get_rdb(self):
-        status = 0
-
-        return status
     def configure(self, **kwargs):
         """configure
         executed when Signals.CONFIG is recieved in wait() loop.
@@ -107,7 +123,6 @@ class DeviceListener:
         raise NotImplementedError("class {} must implement stop()".format(type(self).__name__))
     def wait(self):
         while True:
-            ## UPDATE
             message = self.pubsub.get_message()
             if message:
                 command=message['data']
@@ -115,24 +130,20 @@ class DeviceListener:
                     command = str(command.decode("utf-8"))
                 except AttributeError:
                     command = str(command)
-                passed_args = redis_to_dict(command)
-                if command.startswith(Signals.START.value):
-                    self.start(**passed_args)
-                    # UPDATE
-                if command.startswith(Signals.CONFIG.value):
-                    previous_state = self.__state
-                    should_configure = False
-                    try:
-                        self.__config_active_state(passed_args)
-                        should_configure = True
-                    except ValueError as e:
-                        self.__state = previous_state
-                        raise e
-                    if should_configure:
-                        self.configure()
-                if command.startswith(Signals.STOP.value):
-                    print(stop)
-                    #UPDATE
+                prefix = re.search('([^\s]+)', command).group(0)
+                task_str = command.replace(prefix, '').strip()
+                task_types = []
+                if task_str:
+                    task_types = ast.literal_eval(task_str)
+                if prefix==Signals.CONFIG.value:
+                    self.update_state_from_redis(**task_types)
+                    self.config(**task_types)
+                if prefix==Signals.STOP.value:
+                    self.stop(**task_types)
+                    self.update_run_states(**task_types, prefix)
+                if prefix==Signals.START.value:
+                    self.start(**task_types)
+                    self.update_run_states(**task_types, prefix)
             time.sleep(.1)
 
 

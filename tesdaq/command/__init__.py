@@ -1,6 +1,6 @@
 from tesdaq.constants import Signals, Config
-from tesdaq.listen.parameters import redis_to_dict
-import redis
+from tesdaq.listen.parameters import TaskState, TaskRestriction
+from rejson import Path
 import time
 import re
 
@@ -15,64 +15,73 @@ class DAQCommander:
         ----------
         redis_instance: redis.Redis
             instance to connect to.
-        task_dict:
-            dict containing parameters, tasks to be updated. 
-            e.g. change sample rate of task "analog_in" to 100, add channel "Dev1/di8" to "digital_in":
-            {
-                "analog_in": {
-                    "sample_rate", 100
-                }, 
-                "digital_in": {
-                "channels":["Dev1/di8"]
-                }
-            }
-        Returns
-        -------
         """
-        try:
-            self.r = redis_instance
-        except Exception as e:
-            print(e)
-    def configure(self, device, task_dict, unset_previous=False):
+        self.r = redis_instance
+    def configure(self, device, to_update, unset_previous=False):
         """configure
-
-        Parameters
-        ----------
-        device: str
-            device key to update.
-        task_dict: dict
-            dict containing parameters, tasks to be updated. 
-            e.g. to change sample rate of task "analog_in" to 100, add channel "Dev1/di8" to "digital_in":
-            {
-                "analog_in": {
-                    "sample_rate", 100
-                }, 
-                "digital_in": {
-                "channels":["Dev1/di8"]
-                }
-            }
-        unset_previous: bool, optional
-            Determines whether previously set values will be reset to zero before instantiation, or if values will be added.
+        Updates existing task state in Redis.
+        Sends CONFIG message to device channel, with list of updated tasks.
+        
+        :param device:
+        :param to_update:
+        :param unset_previous:
         """
-        task_dict['unset_previous']=unset_previous
-        self.r.publish(device,Signals.CONFIG.value + ' ' + str(task_dict))
-    def start(self, c, **kwargs):
-            self.r.publish(c,Signals.START.value + ' ' + str(kwargs))
-    def stop(self, c, **kwargs):
-            self.r.publish(c,Signals.STOP.value + ' ' + str(kwargs))
-    def get_active_devices(self):
-        devices = [key.decode("utf-8") for key in self.r.keys() if key.decode("utf-8").startswith(Config.DEV_KEY_PREFIX.value)]
-        devices = [dev.replace(Config.DEV_KEY_PREFIX.value,'') for dev in devices]
-        devices = [dev.replace(Config.DEV_STATE_POSTFIX.value,'') for dev in devices if dev.endswith(Config.DEV_STATE_POSTFIX.value)]
-        return devices
+        # Check device exists
+        device_key = Config.DEV_KEY_PREFIX.value+device
+        if not self.r.exists(device_key):
+            raise ValueError("Device \"{}\" does not appear to exist. Unable to configure.".format(device))
+        state = self.get_device_state(device)
+        for task_type, altered_values in to_update.items():
+            if state[task_type]:
+                for key, value in altered_values.items():
+                    if unset_previous:
+                        delattr(state[task_type], key, value)
+                    setattr(state[task_type], key, value)
+        for key in state.keys():
+            state[key] = state[key].json_repr()
+        self.r.jsonset(device_key, Path.rootPath(), state)
+        self.r.publish(device, Signals.CONFIG.value+" "+str(list(to_update.keys())))
+    def start(self, device, task_list):
+        return 0
+    def stop(self, device, task_list):
+        return 0
+
+    # Getters from RDB.
+    def get_existing_devices(self):
+        """get_existing_devices
+        Gets all existing device names in redis database.
+        """
+        keys = []
+        for key in self.r.keys():
+            if key.startswith(Config.DEV_KEY_PREFIX.value):
+                keys.append(key.replace(Config.DEV_KEY_PREFIX.value, ''))
+        return keys
     def get_device_state(self, device):
-        key = Config.DEV_KEY_PREFIX.value+device+Config.DEV_STATE_POSTFIX.value
-        print(key)
-        state = self.r.get(Config.DEV_KEY_PREFIX.value+device+Config.DEV_STATE_POSTFIX.value)
-        print(state)
-        state = redis_to_dict(state)
+        """get_device_state
+        Gets state of device as {"task_name": obj} pairs.
+
+        :param device:
+        """
+        keys = self.r.jsonobjkeys(Config.DEV_KEY_PREFIX.value+device, Path.rootPath())
+        paths = [Path("."+k+".state") for k in keys]
+        state = self.r.jsonget(Config.DEV_KEY_PREFIX.value+device, *paths)
+        restriction = self.get_device_restriction(device)
+        for key in keys:
+            oldkey = [k for k in list(state.keys()) if key in k][0]
+            state[key] = TaskState(**state[oldkey],restriction=restriction[key])
+            del state[oldkey]
         return state
     def get_device_restriction(self, device):
-        restrict = self.r.get(Config.DEV_KEY_PREFIX.value+device+Config.DEV_RESTRICT_POSTFIX.value)
-        restrict = redis_to_dict(restrict)
-        return restrict
+        """get_device_restriction
+        Gets restriction of device as {"task_name": obj} pairs.
+
+        :param device:
+        """
+        keys = self.r.jsonobjkeys(Config.DEV_KEY_PREFIX.value+device, Path.rootPath())
+        ks = [Path("."+k+".restriction") for k in keys]
+        restriction = self.r.jsonget(Config.DEV_KEY_PREFIX.value+device, *ks)
+        for key in keys:
+            oldkey = [k for k in list(restriction.keys()) if key in k][0]
+            restriction[key] = TaskRestriction(**restriction[oldkey])
+            del restriction[oldkey]
+        return restriction

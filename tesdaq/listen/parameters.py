@@ -2,7 +2,8 @@ name = 'parameters'
 import ast
 import re
 from collections import namedtuple
-"""TaskTypeRestriction
+
+"""TaskRestriction
 Tuple subclass that stores immutable, device specific information about constraints on task types.
 e.g., if a DAQ can run one analog voltage task at a time, num_tasks=1.
 
@@ -25,8 +26,8 @@ volt_ranges: list of tuple of float
 sr_is_per_chan: bool
     Whether sample rate scales as 1/channel. Default=False.
 """
-TaskTypeRestriction = namedtuple(
-        'TaskTypeRestriction',
+TaskRestriction = namedtuple(
+        'TaskRestriction',
         [
             'num_tasks',
             'valid_channels',
@@ -79,7 +80,8 @@ class TaskState:
             restriction,
             channels=[],
             sample_rate=100,
-            timing_mode=''
+            timing_mode='',
+            is_active=False
             ):
         self.__restrict = restriction
         self.channels = channels
@@ -91,15 +93,11 @@ class TaskState:
 
         self.is_active = False
 
-    def __str__(self):
-        rep = str({'restriction': dict(self.restrict._asdict()), 'state': self.current_state})
-        return rep
-
     def __repr__(self):
         rep = str({'restriction': dict(self.restrict._asdict()), 'state': self.current_state})
         return rep
     def json_repr(self):
-        rep = str({'restriction': dict(self.restrict._asdict()), 'state': self.current_state})
+        rep = {'restriction': dict(self.restrict._asdict()), 'state': self.current_state}
         return rep
     @property
     def current_state(self):
