@@ -1,5 +1,5 @@
 from tesdaq.constants import Signals, Config
-from tesdaq.listen.parameters import TaskState, TaskRestriction
+from tesdaq.types import TaskState, TaskRestriction
 from rejson import Path
 import time
 import re
@@ -13,8 +13,7 @@ class DAQCommander:
 
         Parameters
         ----------
-        redis_instance: redis.Redis
-            instance to connect to.
+        redis_instance: redis.Redis instance to connect to.
         """
         self.r = redis_instance
     def configure(self, device, to_update, unset_previous=False):
@@ -68,7 +67,7 @@ class DAQCommander:
         restriction = self.get_device_restriction(device)
         for key in keys:
             oldkey = [k for k in list(state.keys()) if key in k][0]
-            state[key] = TaskState(**state[oldkey],restriction=restriction[key])
+            state[key] = TaskState(**state[oldkey],restriction=restriction[key]).json_repr()
             del state[oldkey]
         return state
     def get_device_restriction(self, device):

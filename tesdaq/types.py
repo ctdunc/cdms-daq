@@ -1,4 +1,4 @@
-name = 'parameters'
+name = 'types'
 import ast
 import re
 from collections import namedtuple
@@ -93,22 +93,7 @@ class TaskState:
 
         self.is_active = False
 
-    def __repr__(self):
-        rep = str({'restriction': dict(self.restrict._asdict()), 'state': self.current_state})
-        return rep
-    def json_repr(self):
-        rep = {'restriction': dict(self.restrict._asdict()), 'state': self.current_state}
-        return rep
-    @property
-    def current_state(self):
-        state_dict = {
-                'channels': self.channels, 
-                'sample_rate': self.sample_rate,
-                'timing_mode': self.timing_mode,
-                'is_active': self.is_active
-                }
-        return state_dict
-
+    
     @property
     def restrict(self):
         return self.__restrict

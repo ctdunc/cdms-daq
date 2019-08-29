@@ -1,8 +1,8 @@
 import nidaqmx
 from tesdaq.listen import DeviceListener
-from tesdaq.listen.parameters import TaskTypeRestriction
+from tesdaq.listen.types import TaskRestriction
 
-def __map_enum_to_dict(enum_list):
+def map_enum_to_dict(enum_list):
     """__map_enum_to_dict
         Maps enum types to dict of {"name": enum} pairs, for use in frontend programming/TaskTypeRestriction generation.
     Parameters
@@ -18,7 +18,7 @@ def __map_enum_to_dict(enum_list):
     for item in enum_list:
         enum_dict[item.name] = item
     return enum_dict 
-def __volt_rng_as_nested_arr(vrange):
+def volt_rng_as_nested_arr(vrange):
     """__volt_rng_as_nested_arr
     Returns list of tuples containing (min,max) pairs of voltage ranges. 
     This function only exists because nidaqmx returns voltage ranges as one long list of [min_0,max_0,min_1,max_1...], instead of nesting them sensibly.
@@ -175,6 +175,7 @@ class DAQmxListener(DeviceListener):
         digital_input: tesdaq.listen.parameters.TaskTypeRestriction
             TaskTypeRestriction on 'digital_input' tasks.
             If none, will attempt to autogenerate restrictions from current device settings.
+            It is suggested to explicitly pass these restrictions.
         """
         # TODO: Write example of passing dict of nidaqmx enum with kwarg
         if not kwargs:
@@ -188,9 +189,23 @@ class DAQmxListener(DeviceListener):
         self.ai_task = nidaqmx.Task()
         self.di_task = nidaqmx.Task()
     def ai_encb(self, task_handle, every_n_samples_event_type, number_of_samples, callback_data):
+        """ai_encb
+
+        :param task_handle:
+        :param every_n_samples_event_type:
+        :param number_of_samples:
+        :param callback_data:
+        """
 
         raise NotImplementedError("Classes inheriting DAQmxListener must implement ai_encb() in order to use analog input tasks!")
     def di_encb(self, task_handle, every_n_samples_event_type, number_of_samples, callback_data):
+        """di_encb
+
+        :param task_handle:
+        :param every_n_samples_event_type:
+        :param number_of_samples:
+        :param callback_data:
+        """
 
         raise NotImplementedError("Classes inheriting DAQmxListener must implement di_encb() in order to use digital input tasks!")
     def configure_ai_task(self, channels, timing_mode, sample_rate): # TODO: add more args here, decide what "command" function should do.

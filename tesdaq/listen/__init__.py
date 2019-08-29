@@ -5,7 +5,7 @@ import ast
 from redis.exceptions import ConnectionError
 from rejson import Path
 from tesdaq.constants import Signals, Config
-from tesdaq.listen.parameters import TaskState
+from tesdaq.types import TaskState
 
 class DeviceListener:
     def __init__(
@@ -140,10 +140,10 @@ class DeviceListener:
                     self.config(**task_types)
                 if prefix==Signals.STOP.value:
                     self.stop(**task_types)
-                    self.update_run_states(**task_types, prefix)
+                    self.update_run_states(prefix, **task_types)
                 if prefix==Signals.START.value:
                     self.start(**task_types)
-                    self.update_run_states(**task_types, prefix)
+                    self.update_run_states(prefix, **task_types)
             time.sleep(.1)
 
 
