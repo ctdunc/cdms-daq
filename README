@@ -1,0 +1,18 @@
+tesdaq
+======
+Redis-based control of DAQ devices and the Pyle Lab's data analysis pipeline.
+
+Installation
+------------
+This project is installable via pypi. Simply type `pip install tesdaq` and you should be good to go.
+
+Alternately, clone this repository using `git clone https://github.com/ucbpylegroup/tesdaq`.
+
+Getting Started
+---------------
+
+
+Documentation
+-------------
+Currently in progress. It should be stored in the doc/ file of this repository.
+There will also be a mirror at connorduncan.xyz sometime today.

@@ -5,7 +5,7 @@ import ast
 from redis.exceptions import ConnectionError
 from rejson import Path
 from tesdaq.constants import Signals, Config
-from tesdaq.types import TaskState
+from tesdaq.task import TaskState
 class DeviceListener:
     def __init__(
             self,
@@ -21,9 +21,9 @@ class DeviceListener:
         redis_instance: redis.Redis
             Redis instance to connect
         **kwargs:
-            key, value pairs that correspond to task types and restrictions (e.g. analog_input=DeviceRestriction(...))
-        Returns
-        -------
+            key, value pairs that correspond to task types and constraint objects. 
+            Must be json serializable by encoder used by redis_instance.
+
         """
 
         self.id = Config.DEV_KEY_PREFIX.value+identifier
@@ -48,44 +48,10 @@ class DeviceListener:
         self.r.jsonset(self.id,".restriction", res)
         self.r.jsonset(self.id,".state", self.state)
 
-    def update_state(self, tasks_to_configure):
-        """update_state
-        Updates local state.
-
-        Parameters
-        ----------
-        tasks_to_configure: dict with following structure:
-            {"task_type": {
-                "parameter_to_change_1": [new, value],
-                "other_parameter":      "new_value"
-                }
-            }
-        Returns
-        -------
-        status: bool
-            Returns true if changes have been made.
-        """
-        status = False
-        should_reset = tasks_to_configure['unset_previous']
-        del tasks_to_configure['unset_previous']
-        for task_type, to_update in tasks_to_configure.items():
-            # Check for existing task_type. If not, raise an error.
-            if self.state[task_type]:
-                for key, value in to_update.items():
-                    if should_reset:
-                        delattr(self.state[task_type]['state'], key)
-                    setattr(self.state[task_type]['state'], key, value)
-            else:
-                raise ValueError("Invalid Task Name \"{}\"".format(task_type))
-    
-    def update_rdb(self):
-        """update_rdb
-        Updates redis database with new state.
-        """
-
     def configure(self, **kwargs):
         """configure
         executed when Signals.CONFIG is recieved in wait() loop.
+        This should bridge the state of the DAQ itself to the database.
 
         Parameters
         ----------
@@ -96,7 +62,8 @@ class DeviceListener:
     def start(self, **kwargs):
         """start
         executed when Signals.START is recieved in wait() loop.
-        Inheriting classes should be sure long-polling actions taken in this function execute **asynchronously**, otherwise task state will fail to update.
+        Inheriting classes should be sure long-polling actions taken in this function execute **asynchronously**, 
+        otherwise task state will fail to update on subsequent changes until those actions are completed.
 
         Parameters
         ----------
@@ -123,20 +90,16 @@ class DeviceListener:
                     command = str(command.decode("utf-8"))
                 except AttributeError:
                     command = str(command)
-                prefix = re.search('([^\s]+)', command).group(0)
                 task_str = command.replace(prefix, '').strip()
                 task_types = []
                 if task_str:
                     task_types = ast.literal_eval(task_str)
                 if prefix==Signals.CONFIG.value:
-                    self.update_state_from_redis(**task_types)
                     self.config(**task_types)
                 if prefix==Signals.STOP.value:
                     self.stop(**task_types)
-                    self.update_run_states(prefix, **task_types)
                 if prefix==Signals.START.value:
                     self.start(**task_types)
-                    self.update_run_states(prefix, **task_types)
             time.sleep(.1)
 
 

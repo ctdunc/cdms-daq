@@ -30,7 +30,7 @@ sr_is_per_chan: bool
 """
 TaskRestriction = namedtuple(
         'TaskRestriction',
-        [ 'num_tasks',
+        [   'num_tasks',
             'valid_channels',
             'valid_timing',
             'valid_trigger',
@@ -78,7 +78,7 @@ class TaskState:
     """
     def __init__(
             self,
-            restriction
+            restriction,
             ):
         self.restrict = restriction
         self.__channels = [] # Start with all channels disabled.
