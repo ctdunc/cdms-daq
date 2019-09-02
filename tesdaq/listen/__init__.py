@@ -6,7 +6,6 @@ from redis.exceptions import ConnectionError
 from rejson import Path
 from tesdaq.constants import Signals, Config
 from tesdaq.types import TaskState
-
 class DeviceListener:
     def __init__(
             self,
@@ -40,20 +39,14 @@ class DeviceListener:
         self.pubsub = self.r.pubsub()
         self.pubsub.subscribe(identifier)
 
-        self.__state = {}
+        self.state = {}
+        res = {}
+        self.r.jsonset(self.id, Path.rootPath(), {})
         for task_type, restriction in kwargs.items():
-            self.__state[task_type] = TaskState(restriction)
-        self.r.jsonset(self.id, Path.rootPath(), self.state)
-
-    @property
-    def state(self):
-        """state
-        Returns
-        -------
-        Representation of state as JSON serializable object. 
-        There's basically no other reason to access it as the TaskState object outside of this class.
-        """
-        return dict(map(lambda entry: (entry[0], entry[1].json_repr()), self.__state.items()))
+            self.state[task_type] = TaskState(restriction)
+            res[task_type] = restriction._asdict()
+        self.r.jsonset(self.id,".restriction", res)
+        self.r.jsonset(self.id,".state", self.state)
 
     def update_state(self, tasks_to_configure):
         """update_state
@@ -77,11 +70,11 @@ class DeviceListener:
         del tasks_to_configure['unset_previous']
         for task_type, to_update in tasks_to_configure.items():
             # Check for existing task_type. If not, raise an error.
-            if self.__state[task_type]:
+            if self.state[task_type]:
                 for key, value in to_update.items():
                     if should_reset:
-                        delattr(self.__state[task_type]['state'], key)
-                    setattr(self.__state[task_type]['state'], key, value)
+                        delattr(self.state[task_type]['state'], key)
+                    setattr(self.state[task_type]['state'], key, value)
             else:
                 raise ValueError("Invalid Task Name \"{}\"".format(task_type))
     

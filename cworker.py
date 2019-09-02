@@ -1,8 +1,8 @@
 from tesdaq.listen import DeviceListener
 from tesdaq.types import TaskRestriction
-
+from tesdaq.types.serialize import TDEncoder
 import rejson
-r = rejson.Client()
+r = rejson.Client(encoder=TDEncoder())
 
 analog_in = TaskRestriction(
         num_tasks=1,

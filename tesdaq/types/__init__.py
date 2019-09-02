@@ -1,8 +1,10 @@
 name = 'types'
-import ast
-import re
+import warnings
 from collections import namedtuple
 
+def _warn_invalid(value, parameter):
+    warnings.warn("Value \"{}\" is not allowed by restriction on \"{}\".".format(value, parameter))
+    return 0
 """TaskRestriction
 Tuple subclass that stores immutable, device specific information about constraints on task types.
 e.g., if a DAQ can run one analog voltage task at a time, num_tasks=1.
@@ -28,8 +30,7 @@ sr_is_per_chan: bool
 """
 TaskRestriction = namedtuple(
         'TaskRestriction',
-        [
-            'num_tasks',
+        [ 'num_tasks',
             'valid_channels',
             'valid_timing',
             'valid_trigger',
@@ -77,43 +78,21 @@ class TaskState:
     """
     def __init__(
             self,
-            restriction,
-            channels=[],
-            sample_rate=100,
-            timing_mode='',
-            is_active=False
+            restriction
             ):
-        self.__restrict = restriction
-        self.channels = channels
-        self.sample_rate = sample_rate
-        try:
-            self.timing_mode = timing_mode
-        except ValueError:
-            self.timing_mode = self.__restrict[2][0]
-
+        self.restrict = restriction
+        self.__channels = [] # Start with all channels disabled.
+        self.__sample_rate = getattr(restriction, 'min_sample_rate') # Start at minimum sample rate
+        self.__trigger_mode = getattr(restriction,'valid_trigger')[0]
+        self.__timing_mode = getattr(restriction, 'valid_timing')[0]
+        self.__volt_range = getattr(restriction, 'volt_ranges')[0]
         self.is_active = False
 
-    
-    @property
-    def restrict(self):
-        return self.__restrict
 
+    #CHANNELS PROPERTY
     @property
     def channels(self):
         return self.__channels
-
-    @property
-    def sample_rate(self):
-        return self.__sample_rate
-
-    @property
-    def timing_mode(self):
-        return self.__timing_mode
-
-    @channels.deleter
-    def channels(self):
-        self.__channels = []
-
     @channels.setter
     def channels(self, channels):
         """
@@ -129,34 +108,62 @@ class TaskState:
         Returns
         -------
         """
-        try:
-            next_channels = self.channels
-        except AttributeError:
-            next_channels = []
-            self.__channels = next_channels
         for channel in channels:
             if channel not in getattr(self.restrict, "valid_channels"): 
                 raise ValueError("Channel \"{}\" is not allowed by the current restriction.".format(channel))
-            elif channel not in next_channels:
-                next_channels.append(channel)
-        if len(next_channels) > 0:
-            self.__channels = next_channels
+                
+        if len(channels) > 0:
+            self.__channels = channels 
 
+    # SAMPLE RATE PROPERTY 
+    # TODO, add check on sr_is_per_chan
+    @property
+    def sample_rate(self):
+        return self.__sample_rate(self)
     @sample_rate.setter
     def sample_rate(self, sample_rate):
         msr = getattr(self.restrict, 'min_sample_rate')
         mxr = getattr(self.restrict, 'max_sample_rate')
-        if msr < sample_rate < mxr:
+        if msr <= sample_rate <= mxr:
             self.__sample_rate = sample_rate
         else:
             raise ValueError("Sample rate is outside valid range")
 
+    # TIMING MODE PROPERTY
+    @property
+    def timing_mode(self):
+        return self.__timing_mode
     @timing_mode.setter
     def timing_mode(self, timing_mode):
         if timing_mode in getattr(self.restrict, 'valid_timing'):
             self.__timing_mode = timing_mode
         else:
             raise ValueError("Timing mode \"{}\" is not allowed by current restriction".format(timing_mode))
+    
+    # VOLT RANGE PROPERTY
+    @property
+    def volt_range(self):
+        return self.__volt_range
 
-def redis_to_dict(st):
-    return st
+    @volt_range.setter
+    def volt_range(self, volt_range):
+        if volt_range in getattr(self.restrict, 'volt_ranges'):
+            self.__volt_range = volt_range
+        else:
+            _warn_invalid(volt_range, 'volt_ranges')
+   
+    # TRIGGER MODE PROPERTY
+    @property
+    def trigger_mode(self):
+        return self.__trigger_mode
+
+    @trigger_mode.setter
+    def trigger_mode(self, trigger_mode):
+        if trigger_mode in getattr(self.restrict, 'valid_trigger'):
+            self.__trigger_mode = trigger_mode
+        else:
+            _warn_invalid(trigger_mode, 'valid_trigger')
+
+
+
+
