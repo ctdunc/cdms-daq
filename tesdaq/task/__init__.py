@@ -119,7 +119,7 @@ class TaskState:
     # TODO, add check on sr_is_per_chan
     @property
     def sample_rate(self):
-        return self.__sample_rate(self)
+        return self.__sample_rate
     @sample_rate.setter
     def sample_rate(self, sample_rate):
         msr = getattr(self.restrict, 'min_sample_rate')
@@ -163,7 +163,3 @@ class TaskState:
             self.__trigger_mode = trigger_mode
         else:
             _warn_invalid(trigger_mode, 'valid_trigger')
-
-
-
-

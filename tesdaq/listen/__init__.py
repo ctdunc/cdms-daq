@@ -25,14 +25,13 @@ class DeviceListener:
             Must be json serializable by encoder used by redis_instance.
 
         """
-
+        self.chan = identifier
         self.id = Config.DEV_KEY_PREFIX.value+identifier
 
         self.r = redis_instance
 
         # Check if key is reserved
         rdb_val = self.r.jsonget(self.id) 
-
         if rdb_val:
             raise ValueError("A listener with id \"{}\" already exists. Please use a different id, or stop that worker, and unset the redis keys.".format(self.id))
 
@@ -47,7 +46,18 @@ class DeviceListener:
             res[task_type] = restriction._asdict()
         self.r.jsonset(self.id,".restriction", res)
         self.r.jsonset(self.id,".state", self.state)
-
+    
+    def _validate_redis_changes(self, to_update):
+        for t in to_update:
+            task = self.r.jsonget(self.id)['state'][t]
+            for key, value in task.items():
+                if value != getattr(self.state[t],key):
+                    try:
+                        setattr(self.state[t], key, value)
+                    except ValueError as e:
+                        print(str(e))
+            self.r.jsonset(self.id, ".state", self.state)
+        return 0
     def configure(self, **kwargs):
         """configure
         executed when Signals.CONFIG is recieved in wait() loop.
@@ -90,24 +100,26 @@ class DeviceListener:
                     command = str(command.decode("utf-8"))
                 except AttributeError:
                     command = str(command)
+                prefix = re.search('([^\s]+)', command).group(0)
                 task_str = command.replace(prefix, '').strip()
                 task_types = []
                 if task_str:
                     task_types = ast.literal_eval(task_str)
                 if prefix==Signals.CONFIG.value:
-                    self.config(**task_types)
+                    self._validate_redis_changes(task_types)
+                    self.configure(task_types)
                 if prefix==Signals.STOP.value:
-                    self.stop(**task_types)
+                    self.stop(*task_types)
                 if prefix==Signals.START.value:
-                    self.start(**task_types)
+                    self.start(*task_types)
             time.sleep(.1)
 
 
 class TestListener(DeviceListener):
     def __init__(self, identifier,  redis_instance, **kwargs):
         super(TestListener, self).__init__(identifier, redis_instance, **kwargs)
-    def configure(self, **kwargs):
-        print(kwargs)
+    def configure(self, task_types):
+        print(task_types)
     def start(self, **kwargs):
         print(kwargs)
     def stop(self, **kwargs):

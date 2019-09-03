@@ -1,8 +1,8 @@
-from tesdaq.listen import DeviceListener
-from tesdaq.types import TaskRestriction
-from tesdaq.types.serialize import TDEncoder
+from tesdaq.listen import TestListener 
+from tesdaq.task import TaskRestriction
+from tesdaq.task.serialize import TDEncoder
 import rejson
-r = rejson.Client(encoder=TDEncoder())
+r = rejson.Client(encoder=TDEncoder(), decode_responses=True)
 
 analog_in = TaskRestriction(
         num_tasks=1,
@@ -22,5 +22,5 @@ digital_in = TaskRestriction(
         max_sample_rate=10000,
         volt_ranges=[(-5,5)],
         sr_is_per_chan=True)
-testlistener = DeviceListener("test_222", r, analog_in=analog_in, digital_in=digital_in)
+testlistener = TestListener("test", r, analog_in=analog_in, digital_in=digital_in)
 testlistener.wait()
